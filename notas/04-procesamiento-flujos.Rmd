@@ -37,6 +37,7 @@ con las unidades seleccionadas.
 
 
 ```{r, message = FALSE, warning = FALSE}
+# Cargar librerías
 library(tidyverse)
 ```
 
@@ -47,10 +48,19 @@ cb_palette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2"
 
 
 ```{r}
+# Función para generar transacciones
 generar_trans <- function(...){
+  
+  # Muestreo aleatorio simple de los id's
   id_num <- sample.int(10000, 1)
+  
+  # Simula el monto con una t-student
   monto <- rt(1, df = 5, ncp = 5000) 
+  
+  # Genera un dataframe con el id y el monto de la transacción. 
   trans <- list(id = id_num, monto = monto)
+  
+  # Regresa el dataframe trans
   trans
 }
 ```
@@ -58,29 +68,50 @@ generar_trans <- function(...){
 Ahora simulamos un flujo y calculamos la mediana, con todos los datos:
 
 ```{r}
+# Fija la semilla. 
 set.seed(312)
+
+# Genera 100 mil transacciones 
 trans <- map(1:100000, generar_trans) 
+
+# Convierte la variable monto en double
 total_montos <- map_dbl(trans, "monto")
+
+# Calcula la mediana 
 median(total_montos)
 ```
 
 
-Si queremos seleccionar un 1\% de las transacciones para hacer más rápido
-nuestro cálculo, podemos seleccionar al azar para cada elemento si lo
+Si queremos seleccionar un 1\% de las transacciones para hacer más rápido nuestro cálculo, podemos seleccionar al azar, para cada elemento, si lo
 incluímos en la muestra o no, por ejemplo:
 
 
 ```{r}
+# Función para decidir si se incluye el elemento o no. 
 seleccionar_rng <- function(prop = 0.01){
+  
+  # Se genera un aleatorio entre 0 y 1, si es menor a prop
+  # se incluye, de lo contrario, no se incluye. 
    runif(1) < prop
 }
+
+# Selecciona una muestra de 1% de los datos 
 trans_filtradas <- keep(trans, ~ seleccionar_rng(prop = 0.01))
+
+# No  de observaciones filtradas
 length(trans_filtradas)
+
+# Convierte a double el monto y extrae la mediana. 
 trans_filtradas %>% map_dbl("monto") %>% median
 ```
 
+Utilizando todos los datos, la mediana verdadera es de 5,365.75; en cambio, utilizando el 1% de la muestra la mediana es de 5,377.825. Es decir, obtenemos una muy buena aproximación de la medida de interés sin tener que guardar todos los datos. 
+
+
 Este esquema simple no funciona bien cuando nuestra unidad de análisis
-no corresponde a las unidades del flujo, como en este ejemplo. ¿Puedes dar ejemplos?
+no corresponde a las unidades del flujo, como en este ejemplo. ¿Puedes dar ejemplos? Por ejemplo, cuando los flujos corresponden a los clicks en páginas de internet, pero lo que tu quieres medir es sobre el número de nuevos visitantes. Si se realiza un muestreo aleatorio, puedes estar dejando escapar nuevas visitas y sólo seleccionar clicks de un mismo cliente. 
+
+
 
 ---
 
@@ -125,49 +156,82 @@ Primero veamos el resultado cuando utilizamos todos los clientes de
 la ventana de tiempo:
 
 ```{r}
+# Imprime una línea 
 sprintf("Número de clientes: %i", length(unique(map_int(trans, "id"))))
+
+# Agrega id de filas a las transacciones
 trans_df <- trans %>% bind_rows() 
-mediana_max <- trans_df %>% 
-  group_by(id) %>% 
-  summarise(monto_max = max(monto)) %>%
-  pull(monto_max) %>% median 
+
+# Calcula la mediana de los montos máximos de transaccion por id
+mediana_max <- trans_df %>% # datos
+  group_by(id) %>% # agrupa por id 
+  summarise(monto_max = max(monto)) %>% # extrae monto max
+  pull(monto_max) %>% # extrae un monto máximo
+  median # calcula la mediana de los montos maximos
+
 sprintf("Mediana de máximo monto: %.1f", mediana_max)
 ```
 
-¿Cómo funciona si quisiéramos usar una muestra? Usamos una función hash y 
-repartimos en 10 cubetas (deberíamos
+¿Cómo funciona si quisiéramos usar una muestra? Usamos una función hash y repartimos en 10 cubetas (deberíamos
 obtener alrededor del 10\% de los clientes). Seleccionamos una sola cubeta
-y usamos para resumir:
+y la usamos para resumir:
 
 ```{r}
+# Función hash para seleccionar clientes
 seleccionar <- function(id){
+  
+  # función hash modular con módulo 10 al final para tener 10 cubetas.
   ((28*id + 110) %% 117) %% 10  == 0
 }
 
+# Selecciona clientes que caen en la cubeta 10. 
 trans_filtradas <- keep(trans, ~ seleccionar(.x$id))
+
+# Imprime el no. de clientes en la muestra
 sprintf("Número de clientes: %i", length(unique(map_int(trans_filtradas, "id"))))
+
+# Agrega no. de renglón
 trans_df <- trans_filtradas %>% bind_rows() 
-mediana_max <- trans_df %>% 
-  group_by(id) %>% 
-  summarise(monto_max = max(monto)) %>%
-  pull(monto_max) %>% median 
+
+# Calcula la mediana de los montos máximos a partir de la muestra seleccionada. 
+mediana_max <- trans_df %>% # datos  
+  group_by(id) %>% # agrupa por cliente
+  summarise(monto_max = max(monto)) %>% #calcula monto max.
+  pull(monto_max) %>% # extrae la variable monto_max
+  median # calcula la mediana
+
+# Imprime la mediana del monto maximo para la muestra 
 sprintf("Mediana de máximo monto: %.1f", mediana_max)
 ```
 
+Utilizando toda la muestra la mediana del monto máximo de transacciones de un cliente es de 9,652.1; mientras que con el 10% de la muestra (aprox.) la mediana estimada es de 9,781.90.
 
-Sin embargo, esto no funciona si seleccionamos al azar las transacciones, obtenemos
+
+Sin embargo, esto no funciona si seleccionamos al azar las transacciones. En este caso, obtenemos
 una mala estimación con sesgo alto:
 
 ```{r}
+# Filtra observaciones con MAS. 
 trans_filtradas <- keep(trans, ~ seleccionar_rng(prop = 0.10))
+
+# No. de transacciones seleccionadas
 length(trans_filtradas)
+
+# Agrega no de filas 
 trans_df <- trans_filtradas %>% bind_rows() 
-mediana_max_incorrecta <- trans_df %>% 
-  group_by(id) %>% 
-  summarise(monto_max = max(monto)) %>%
-  pull(monto_max) %>% median 
+
+# Calcula la mediana del monto maximo para la muestra aleatoria
+mediana_max_incorrecta <- trans_df %>% # datos
+  group_by(id) %>% # agrupa por cliente
+  summarise(monto_max = max(monto)) %>% # calcula monto max. 
+  pull(monto_max) %>% # extrae variable 
+  median # obtiene monto maximo. 
+
+# Imprime el resultado 
 sprintf("Mediana de máximo monto: %.1f", mediana_max_incorrecta)
 ```
+
+Si se utiliza una muestra aleatoria de los datos, la mediana estimada del monto máximo de transacción es de 5,975.50 que es mucho menor al verdadero valor. 
 
 **Observación**: 
 
@@ -190,7 +254,7 @@ que se hacen en comercios donde han existido fraudes anterioremente,
 o quizá checar si un correo proviene de una dirección que está 
 en una whitelist (o blacklist).
 
-En estos ejemplo, 
+En estos ejemplos, 
 tenemos que checar contra la lista $S$ si seleccionamos un elemento o no, a
 diferencia de los ejemplos de arriba.
 Cuando la lista es muy grande, esta operación puede ser costosa. 
@@ -244,7 +308,7 @@ Un filtro de Bloom consiste de:
 que mapean elementos de $\Omega$ a $n$ cubetas de $1$ a $n$ (posiciones
 en el vector de bits).
  
-Y el problema es que queremos decidir si un elemento 
+Y el problema consiste en decidir si un elemento 
 nuevo $\omega\in \Omega$ está o no en el
 conjunto $S$.
 
@@ -262,7 +326,10 @@ los enteros del uno al mil a las cubetas 1 a 11 (el número de entradas del
  vector de bits). 
 
 ```{r}
+# Elementos de la muestra previa 
 S <- c(15, 523, 922)
+
+# Funciones has a utilizar con modulo 11 para tener una cubeta por no. de bits. 
 hash_f <- list(h_1 = function(x) x %% 11 + 1,
                    h_2 = function(x) (5*x + 3) %% 11 + 1)
 ```
@@ -270,6 +337,7 @@ hash_f <- list(h_1 = function(x) x %% 11 + 1,
 Inicializamos el vector de bits:
 
 ```{r}
+# Inicializar vector de bits en ceros. 
 v <- integer(11)
 ```
 
@@ -280,10 +348,19 @@ Para cada elemento de $S$, calculamos los dos hashes, y ponemos en TRUE
 las dos posiciones dadas por estos hashes:
 
 ```{r}
+# Para cada elemento de la muestra previa 
 for(i in 1:length(S)){
+  
+  # Se obtiene la cubeta a la que se mapea el elemento con cada hash.
   indices <- map_dbl(hash_f, ~ .x(S[i]))
+  
+  # Imprime las cubetas a las que corresponde 
   print(indices)
+  
+  # Convierte a TRUE las posiciones ocupadas por los elementos previos.
   v[indices] <- 1
+  
+  # Imprime el vector de posiciones. 
   print(v)
 }
 ```
@@ -297,19 +374,27 @@ v
 
 Ahora veamos cómo decidimos cuáles elementos están o no en el conjunto $S$. Si
 observamos un nuevo número $x$, calculamos sus hashes, y vemos si esas
-posiciones están prendidas en el vector $v$. Si no lo están, entonces el
-elemento necesariamente no está en el conjunto $S$:
+posiciones están prendidas en el vector $v$. Si al menos una de las dos posiciones no está prendida, entonces el
+elemento no está en el conjunto $S$:
 
 ```{r}
+# Define nuevo elemento. 
 z <- 219
+
+# Calcula el valor de las funciones hash. 
 h_z <- map_dbl(hash_f, ~.x(z))
+
+# Valor de las funciones hash.
 h_z
 ```
 
 No está en la lista, pues por lo menos uno de los bits es igual a cero:
 
 ```{r, warning=FALSE}
+# Extrae los bits correspondientes al nuevo elemento. 
 v[h_z]
+
+# Revisa si todos los valores son iguales a TRUE. 
 all(v[h_z])
 ```
 
@@ -317,8 +402,13 @@ Para cualquier número en la colección, todas las posiciones de sus hashes tien
 el valor $1$:
 
 ```{r, warning=FALSE}
+# Número de la muestra 
 z <- 523
+
+# Calcula valor de las funciones hash. 
 h_z <- map_dbl(hash_f, ~.x(z))
+
+# Revisa si todos los valores son TRUE
 all(v[h_z])
 ```
 
@@ -326,8 +416,13 @@ Sin embargo, puede haber falsos positivos (números que no están en la colecci�
 $S$ cuyos dos hashes dan posiciones en $1$):
 
 ```{r, warning=FALSE}
+# Nuevo valor (falso positivo)
 z <- 413
+
+# Calcula el valor de las funciones hash. 
 h_z <- map_dbl(hash_f, ~.x(z))
+
+# Revisa si todos los valores son TRUE
 all(v[h_z])
 ```
 
@@ -351,7 +446,7 @@ en el filtro vamos a encontar el elemento.
 son operaciones relativamente eficientes (depende del número de hashes
 y es posible paralelizar).
 
-- No es posible eliminar elementos de un filtro de Bloom (¿por qué?).
+- No es posible eliminar elementos de un filtro de Bloom. ¿Por qué? Por que si se elimina un elemento se tendría que convertir a cero las cubetas que le corresponden a sus valores hash, pero estos mismos valores hash pueden corresponder a otro elemento de la lista por lo tanto no deben convertirse a cero. Si se desea eliminar un elemento, se debe volver a llenar el filtro desde cero. 
 
 ## Análisis de filtro de Bloom
 
@@ -361,7 +456,7 @@ y el número de funciones hash $k$, dependiendo
 del número de elementos que tenemos que almacenar. De estas dos contidades,
 y del tamaño del conjunto $S$, depende la tasa de falsos positivos.
 
-Supongamos como aproximación que una función hash, al aplicar a una $x$ dada,
+Supongamos como aproximación que una función hash, al aplicarla a una $x$ dada,
 selecciona
 una de las entradas del vector de bits con la misma probabilidad. 
 La probabilidad de que un
@@ -401,17 +496,23 @@ Podemos hacer una gráfica para ver cómo se comporta la tasa de falsos positivo
 
 
 ```{r, fig.width = 8}
+# Función que calcula la probabilidad de tener un falso positivo. 
 tasa_fp <- function(n, s, k) {
     (1 - (1 - (1 / n)) ^ (k * s)) ^ k
 }
-df <- expand.grid(list(s = c(1e5, 1e6, 1e7, 1e8),
-        k = seq(1, 20),
-        n = 10 ^ seq(5, 9, by = 0.5))) %>%
-      mutate(mill_bits = round(n/1e6, 1)) %>%
-      mutate(tasa_falsos_p = tasa_fp(n, s, k)) %>%
-      mutate(s_str = paste0(s, ' insertados'))
+
+# Crea posibles combinaciones de una muestra de 100mil,1millon,10millones y 100millones, 
+# Hashes de 1 a 20 
+# vector de 100mil a mil millones de bytes
+df <- expand.grid(list(s = c(1e5, 1e6, 1e7, 1e8), # tamaño de muestra original
+        k = seq(1, 20), # hashes
+        n = 10 ^ seq(5, 9, by = 0.5))) %>% # bits 
+      mutate(mill_bits = round(n/1e6, 1)) %>% # convierte a millones de bits
+      mutate(tasa_falsos_p = tasa_fp(n, s, k)) %>% # proba falso positivo
+      mutate(s_str = paste0(s, ' insertados')) # modifica s
 
 
+# Grafica de hashes vs prob fp, color = no bits, facets = insertados. 
 ggplot(df, aes(x = k, y = tasa_falsos_p, 
   colour = factor(mill_bits), group = mill_bits)) + 
   geom_line(size = 1.2) +
@@ -422,27 +523,36 @@ ggplot(df, aes(x = k, y = tasa_falsos_p,
   scale_y_sqrt(breaks = c(0.01,0.05,0.1,0.25,0.5,1)) 
 ```
 
+Hay un trade off entre tamaño de muestra original, no de bits, probabilidad de falso positivo y no de hashes. Por ejemplo, para el menor número de insertados (100 mil), podríamos usar una curva de mil millones de bits y parácticamente podríamos asegurar no tener falsos positivos para cualquier no. de hashes pero tener mil millones de bits sería muy costoso. En cambio utilizar 1 millón de bits con aproximadamente 5 funciones hash, nos da una probabilidad de 0.025 de falsos positivos. Para cada una de estas curvas, buscamos el número de hashes que den el menor probabilidad de falso positivo. 
+
 
 Haciendo algunas aproximaciones, se puede demostrar que el número de hashes
 óptimo es aproximadamente
 $$k  = \frac{n}{s}\log(2)$$
 
 ```{r, warning = FALSE}
+
+# Data frame anterior para calcular k optimo. 
 df_opt <- df %>% select(n, s) %>%  
   mutate(k = ceiling((n/s)*log(2))) %>% unique %>%
   mutate(tasa_falsos_p = tasa_fp(n, s, k)) %>%
   mutate(s_str = paste0(s, ' insertados'))
+
+# Grafica de combinaciones de s,k y n junto con aproximación de k óptima. 
 ggplot(df, aes(x = k, y = tasa_falsos_p)) +
                geom_line(aes(colour=factor(mill_bits), group=mill_bits),
                  size=1.2) +
                facet_wrap(~s_str) +
                labs(x="k = número de hashes", 
+                    y="Probabilidad de falsos positivos",
                     colour = "Mill bits \n en vector") +
                scale_y_sqrt(breaks = c(0.01,0.05,0.1,0.25,0.5,1)) +
                geom_point(data = df_opt, col='red') +
                xlim(0,20)
   
 ```
+
+
 ```{block2, type='resumen'}
 Un filtro de bloom nunca da falsos negativos, pero puede dar falsos positivos.
 La tasa de falsos positivos se puede controlar escogiendo el tamaño del vector
@@ -453,10 +563,14 @@ que vamos a insertar.
 ## Ejemplo: un corrector de ortografía simple basado en filtro de Bloom
 
 ```{r, message = FALSE}
+# Leemos las palabras en el diccionario (Español)
 diccionario <- read_csv("../datos/diccionario/es_dic.txt", col_names = FALSE) %>% 
           pluck("X1")
+
 # nota: el encoding del diccionario debe ser utf-8
 # diccionario <- iconv(diccionario, to = "UTF-8")
+
+# No de palabras en el diccionario. 
 m <- length(diccionario)
 m
 ```
@@ -465,15 +579,17 @@ Queremos insertar entonces unos 250 mil elementos, aunque puede ser posible
 que quizá queramos insertar otras palabras más adelante.
 
 ```{r}
-df <- expand.grid(list(s = 300000,
-                  k = seq(4, 20),
-                  n = c(1e6, 2e6, 4e6, 6e6, 8e6)
+# Creamos las posibles combinaciones de s=300mil, k=4:20 y n=1millon a 8millones
+df <- expand.grid(list(s = 300000, # valores a insertar
+                  k = seq(4, 20), # no. funciones hash
+                  n = c(1e6, 2e6, 4e6, 6e6, 8e6) # no bits. 
                   )) %>%
-      mutate(millones_bits = (n/1e6)) %>%
-      mutate(tasa_falsos_p = tasa_fp(n, s, k)) %>%
+      mutate(millones_bits = (n/1e6)) %>% # convierte a millones 
+      mutate(tasa_falsos_p = tasa_fp(n, s, k)) %>% # calcula proba de falsos pos. 
       mutate(s_str = paste0(s, ' insertados'))
 
 
+# Grafica de análisis de filtro de bloom
 ggplot(df, aes(x = k, y = tasa_falsos_p, 
                colour=factor(millones_bits), group=millones_bits)) + 
                geom_line(size=1.2) +
@@ -487,34 +603,53 @@ Podemos intentar usar un vector de 8 millones de bits con unos 6 hashes. Nuestra
 estimación de falsos positivos con 6 hashes es de
 
 ```{r}
+# no de bits 
 n <- 8e6
-tasa_fp(n = n, s = 250000, k = 6)
+
+# proba de falsos positivos 
+tasa_fp(n = n, s = 300000, k = 6)
 ```
 
 Ahora necesitamos nuestras funciones hash escogidas al azar. Podemos
 usar el algoritmo [xxhash32](https://github.com/Cyan4973/xxHash), por ejemplo:
 
 ```{r}
+# Carga librerías
 library(digest)
+
+# Fija la semilla 
 set.seed(18823)
+
+# Genera las k funciones hash con modulo n. 
 hash_generator <- function(k = 1, n){
+  
+  # Fija las semillas. 
   seeds <- sample.int(652346, k)
+  
+  # Función hash final.
   hasher <- function(x){
+    
+    # Extrae la semillas
     sapply(seeds, function(s){
       # en digest, serialize puede ser false, pues trabajamos con cadenas
       # la salida de xxhash32 son 8 caracteres hexadecimales, pero 
       # solo tomamos 7 para poder convertir a un entero
-      sub_str <- substr(digest::digest(x, "xxhash32", 
-        serialize = FALSE, seed = s), 1, 7)
+      sub_str <- substr(digest::digest(x, "xxhash32",
+                                       serialize = FALSE, seed = s), 1, 7)
+      
+      # convierte a base hexadecimal y luego modulo n
       strtoi(sub_str, base = 16L) %% n + 1
     })
   }
   hasher
 }
+
+# Extrae 5 funciones hash. 
 hashes <- hash_generator(5, n)  
 ```
 
 ```{r}
+# Prueba algunos hashes
 hashes('él')
 hashes('el')
 hashes('árbol')
@@ -525,19 +660,44 @@ Una implementación del filtro de Bloom es como sigue:
 
 
 ```{r}
+# Función para calcular el filtro de bloom. 
+# Esta función produce funciones de ella misma. Es una función de tipo constructor. 
+# Esta forma particular de escribir funciones hace que no sea necesario copiar 
+# cada elemento de R al realizar una operación, por lo tanto ocupa menos memoria y 
+# es más rapido.
+# Cuando llamo a una función se cambia el valor de v por referencia. 
 filtro_bloom <- function(num_hashes, n){
-    v <- raw(n)
+  
+    # representación del vector de bits
+    v <- raw(n) 
+    
+    # Genera las funciones hash modulo n
     hashes <- hash_generator(num_hashes, n)
+    
+    # Insertar palabras del diccionario
     insertar <- function(x){
         x <- iconv(x, "utf-8")
+        
+        # Nota: esta v es la v del ambiente anterior, lleva la doble flecha para 
+        # decirle a R que busque en el ambiente anterior a esta función. 
+        # Si pongo la flecha simple va a arrojar un error porque no existe un v en esta función. 
         v[hashes(x)] <<- as.raw(1)
     }
+    
+    # Función para checar si está en filtro. 
     en_filtro <- function(x){
         
+        # Revisa si las posiciones de los hashes dados son todas iguales a uno. 
         all(as.logical(v[hashes(x)]))
     }
+    
+    # Función para devolver el vector v. 
     vec <- function() v
+    
+    # Retorno de la función. Notar que todas las salidas refieren al mismo vector v. Cuando acutalizo un valor, se actualiza para todas las salidas. 
     filtro <- list(insertar = insertar, en_filtro = en_filtro, vec = vec)
+    
+    # Retorno
     filtro
 }
 ```
@@ -553,9 +713,12 @@ que puedes hacer experimentos utilizándolas directamente en tu código
 Ahora creamos el filtro e insertamos los elementos del diccionario:
 
 ```{r, cache = TRUE}
-# crear filtro
+# Fija la semilla 
 set.seed(812)
+
+# Crea el filtro de bloom con 6 hashes y 8 millones de bits. 
 filtro_b <- filtro_bloom(num_hashes = 6, n = 8e6)
+
 # insertar palabras de diccionario
 system.time(
     for(i in seq_along(diccionario)){
@@ -566,31 +729,41 @@ system.time(
 El tamaño del filtro es de
 
 ```{r}
+# Extrae le tamaño del filtro en MB
 format(object.size(filtro_b$vec()), units = "Mb")
 ```
+
+Esto pasa porque no estamos trabajando con bits sino con bytes. La opción para trabajar con bits en R lo que hace es copiar los bits ie no nos sirve de mucho porque es justo lo que queríamos evitar. Otra opción es implementar el código en c++ para tener algo más "profesional". 
 
 
 Vemos unos ejemplos:
 
 ```{r}
+# Verificamos si la palabra arbol está en el filtro. 
 filtro_b$en_filtro("arbol")
 ```
 
-Como este valor es falso, la palabra *arbol* definitivamente no está en el diccionario
-original. 
+Como este valor es falso, la palabra *arbol* definitivamente no está en el diccionario original. 
 
 ```{r}
+# Verificamos que la palabra árbol esté en el filtro. 
 filtro_b$en_filtro("árbol")
 ```
 
-Por otro lado, la palabra *árbol* prueba positivo. Puede ser un falso positivo,
-con probabilidad muy baja, como calculamos antes. Podemos calcular la exacta ahora que sabemos
+Por otro lado, la palabra *árbol* prueba positivo. Puede ser un falso positivo, con probabilidad muy baja, como calculamos antes. Podemos calcular la exacta ahora que sabemos
 cuántos bits del filtro están ocupados. Primero, la proporción de bits ocupados es:
 
 ```{r}
+# Recuperamos el vector de bits
 v <- as.logical(filtro_b$vec())
+
+# Extraemos el no. de bits. 
 n <- length(v)
+
+# Contamos el no. de casillas ocupadas
 ocupacion <- sum(as.logical(v))
+
+# Obtenemos la proporción de bits ocupados en el filtro. 
 p <- ocupacion / n
 p
 ```
@@ -599,14 +772,18 @@ Y la probabilidad de que una palabra que no está en la lista sea un falso posit
 es:
 
 ```{r}
+# Probabilidad de ser falso positivo.  
 p^6
 ```
 
 Podemos hacer otras pruebas:
 
 ```{r}
+# Palabras nuevas a verificar si están o no en el filtro. 
 palabras_prueba <- c('árbol', 'arbol', 'explicásemos', 'xexplicasemos',
                      'gato', 'perror', 'error', 'perro', 'alluda','ayuda')
+
+# Data frame con las palabras y prueba de si está o no está 
 df_palabras <- tibble(palabra = palabras_prueba) %>%
                    mutate(pertenece = map_lgl(palabra, filtro_b$en_filtro))
 df_palabras
@@ -618,38 +795,65 @@ podemos producir palabras similares (a cierta distancia de edición),
 y filtrar aquellas que pasen el filtro de bloom (ver [How to write a spelling corrector](http://norvig.com/spell-correct.html)).
 
 ```{r}
+
+# Busca palabras cercanas haciendo eliminaciones, sustituciones, transposiciones o inserciones. 
 generar_dist_1 <- function(palabra){
+  
   caracteres <- c(letters, 'á', 'é', 'í', 'ó', 'ú', 'ñ')
+  
+  # Parte el string en dos partes tomando cada posicion como separador en cada elemento del vector. 
+  # Ejem: para la palabra casa tenemos: "" - casa, c-asa, ca-sa, cas-a, casa-""
   pares <- lapply(0:(nchar(palabra)), function(i){
     c(str_sub(palabra, 1, i), str_sub(palabra, i+1, nchar(palabra)))
   })
+  
+  # palabras obtenidas al eliminar una letra. 
   eliminaciones <- pares %>% map(function(x){ paste0(x[1], str_sub(x[2],2,-1))})
+  
+  # Palabras obtenidas de sustituir una letra por otra del diccionario
+  # (en cada posición) incluyendo acetos y la ñ. 
   sustituciones <- pares %>% map(function(x)
       map(caracteres, function(car){
     paste0(x[1], car, str_sub(x[2], 2 ,-1))
   })) %>% flatten 
+  
+  # Palabras obtenidas de agregar una letra del diccionario en cada
+  # posición incluyendo acentos y la ñ
   inserciones <- pares %>% map(function(x){
     map(caracteres, function(car) paste0(x[1], car, x[2]))
   }) %>% flatten
+  
+  # Palabras obtenidas de intercambiar dos letras consecutivas 
   transposiciones <- pares %>% map(function(x){
     paste0(x[1], str_sub(x[2],2,2), str_sub(x[2],1,1), str_sub(x[2],3,-1))
   })
+  
+  # Junta todas las posibles palabras. 
   c(eliminaciones, sustituciones, transposiciones, inserciones) %>% unlist
 }
 ```
 
 ```{r}
+# Posibles opciones par el caracter perror que estén en el diccionario
+# i.e. se generan las posibles palabras y se evaluan con el filtro de bloom 
 generar_dist_1('perror') %>% keep(filtro_b$en_filtro)
 ```
 
 ```{r}
+# Posibles opciones par el caracter explicassemos que estén en el diccionario
+# i.e. se generan las posibles palabras y se evaluan con el filtro de bloom 
 generar_dist_1('explicasemos') %>% keep(filtro_b$en_filtro)
 ```
 
 
 ```{r}
+# Posibles opciones par el caracter hayuda que estén en el diccionario
+# i.e. se generan las posibles palabras y se evaluan con el filtro de bloom 
 generar_dist_1('hayuda') %>% keep(filtro_b$en_filtro)
 ```
+
+Nota: con estas pruebas podemos ver si dentro de las suegerencias encontramos falsos positivos. De ser así, es señal de que nuestros parámetros $k$ y/o $n$  no son adecuados al problema. 
+
 
 ### Ejercicio {-}
 
@@ -685,11 +889,23 @@ esté en la muestra es uniforme $k/n$
 Consideramos $k=100$, y observamos un flujo sintético dado como sigue:
 
 ```{r}
+# No de observaciones a simular para el flujo total
 N <- 100000
+
+# No de observaciones en el flujo histórico
 n_0 <- 1000
+
+# Fijar semilla
 set.seed(103)
-lambda <- 10*abs(sin(1:N/200)) 
+
+# # ???
+# lambda <- 10*abs(sin(1:N/200))
+
+# Simulación del flujo: acumulada de normales. 
 datos <- data_frame(n = 1:N, res = rnorm(N)) %>% mutate(obs = cumsum(res))
+
+# Grafica los flujos históricos (menores a n0)
+# Los ultimos 50 datos (ventana reciente) se marcan en otro color. 
 ggplot(datos %>% filter(n < n_0), aes(x = n, y = obs, colour = factor((n_0 - n) < 50))) +
   geom_line()
 ```
@@ -701,22 +917,49 @@ Sin embargo, si aplicamos el esquema mostrado arriba:
 
 
 ```{r}
+# Calcula la muestra uniforme del flujo original
+# Nuevamente tenemos una función de tipo constructor. 
 muestra_unif <- function(datos_ini, k){
+  
+  # Tamaño del flujo original
   n <- length(datos_ini)
+  
+  # Muestra de tamaño k
   muestra <- sample(datos_ini, k)
+  
+  # Función para seleccionar un dato.
   seleccion <- function(dato){
+    
+    # Reemplaza el tamaño de muestra por n+1
     n <<- n + 1
+    
+    # Obtiene un valor de una uniforme 0-1
     if(runif(1) < k/n) {
+      
+      # si es menor que k/n se selecciona el dato para entrar a la muestra. 
+      # Aleatoriamente reemplaza a un elemento. 
       muestra[sample.int(k, 1)] <<- dato
     }
+    
+    # Calcula la media de la muestra
     mean(muestra)
   }
+  
+  # Función para calcular la media de la muestra. 
   media <- function(){
+    
       mean(muestra)
   }
+  
+  # Lista con las funciones de salida.
   list(seleccion = seleccion, media = media)
+  
 }
+
+# Fija la semilla 
 set.seed(8128324)
+
+# Calcula una muestra aleatoria de los primeros 100 datos de tamaño 50.
 muestra_u <- muestra_unif(datos_ini = datos$obs[1:100], k = 50)
 muestra_u$media()
 ```
@@ -724,6 +967,7 @@ muestra_u$media()
 Ahora observamos el flujo y vamos agregando y rechazando:
 
 ```{r}
+# Para las observaciones 101 a 5000, se va  agregando o rechazando cada observación 
 datos_p <- datos %>% filter(n >= 101, n < 5000) %>%
   mutate(promedio_muestra = map_dbl(obs, muestra_u$seleccion))
 ```
@@ -732,10 +976,10 @@ Y observamos que nuestro esquema da una buena estimación de la media
 total para cada $n$:
 
 ```{r}
-datos_p %>%
-  mutate(promedio_total = cummean(obs)) %>%
-  gather(variable, valor, obs:promedio_total) %>% 
-  ggplot(aes(x = n, y = valor, colour = variable)) + geom_line()
+datos_p %>% # datos
+  mutate(promedio_total = cummean(obs)) %>% # media acumulada del valor observado
+  gather(variable, valor, obs:promedio_total) %>% # formato long
+  ggplot(aes(x = n, y = valor, colour = variable)) + geom_line() #gráfica
 ```
 
 ## Contando elementos diferentes en un flujo.
@@ -777,16 +1021,28 @@ de ceros que hay al final de las cadenas de bits.
 ### Ejemplo {-}
 Consideramos una función hash (para cadenas):
 ```{r}
+
+# Función hash para cadenas
 hash_gen <- function(seed){
+  
+  # Función hash para la semilla específica
   function(x){
+    
+    # Genera una función hash con el algoritmo xxhash32 (strings de tamaño 8)
     hash_32 <- digest::digest(x, 'xxhash32', serialize = FALSE, seed = seed) 
+    
     # Covertimos a bits, tomando de dos en dos:
     # Esta implementación es lenta
-    sapply(seq(1, nchar(hash_32), 2), function(x) substr(hash_32, x, x+1)) %>%
-        strtoi(16L) %>% as.raw %>% rawToBits()
+    sapply(seq(1, nchar(hash_32), 2), function(x) substr(hash_32, x, x+1)) %>% # toma 2 caracteres
+        strtoi(16L) %>% # convierte strings a entero de acuerdo con la base dada
+      as.raw %>% rawToBits()
   }
 }
+
+# Fija la semilla 
 set.seed(5451)
+
+# Genera las funciones hash 
 hash_1 <- hash_gen(seed = 123)
 hash_2 <- hash_gen(seed = 564)
 hash_1("7yya4071872aa")
@@ -796,9 +1052,12 @@ Y ahora hacemos una función para contar el número 0's consecutivos
 en la cola de esta representación:
 
 ```{r}
+# Calcula el no. de ceros al inicio de cada cadena de bits. 
 tail_length <- function(bits){
   bits %>% which.max - 1  
 }
+
+# Calcula el no. de ceros para el string ejemplo
 hash_1("7yya4071872aa") %>% tail_length
 ```
 
@@ -841,24 +1100,37 @@ a $1$, y tiende a $1$ conforme $m$ crece.
 la longitud $m$ de la máxima cola de 0's consecutivos es tal que $2^m$ es mucho más grande que $n$ o mucho más chica que $n$. Abajo graficamos unos ejemplos:
 
 ```{r}
+
+# Calcular que la probabilidad de que el valor máximo de la cola de ceros sea r
 proba_cola <- function(distintos, r){
-  #proba de que el valor máximo de cola de 0's sea r
-  al_menos_r <- 1- (1-0.5^r) ^ distintos 
+  
+  # proba de que el max de las colas sea menor a r
+  # corresponde a la ecuacion 4.1
+  al_menos_r <- 1- (1-0.5^r) ^ distintos
+  
+  # Probabilidad de que el max de las colas sea mayor a r 
   no_mas_de_r <- 1 - (1-0.5 ^ {r+1}) ^ distintos
+  
+  # Proba de que sea de tamaño r.
   prob <-  al_menos_r - no_mas_de_r 
   prob
 }
-df_prob <- data_frame(n = c(2^5, 2^10, 2^20)) %>%
+
+# Generar data frame para distintos no. de elementos
+df_prob <- data_frame(n = c(2^5, 2^10, 2^20)) %>% # 2 a la num de elementos distintos. 
   mutate(probas = map(n, function(n){ 
-    m <- 1:30
-    probas <- sapply(m, function(x){proba_cola(n, x)})
+    m <- 1:30 # tamaño de la cola 
+    probas <- sapply(m, function(x){proba_cola(n, x)}) #calcula la probab de ser de tamaño m 
     tibble(m = m, probas = probas)
     })) %>%
   unnest
+
+# Grafica de comparaciones 
 ggplot(df_prob, aes(x = 2^m, y = probas, colour = factor(n))) + geom_line() +
    ylab("Probabilidad de máxima cola de 0s") +
     scale_x_log10(breaks=10 ^ (1:7))
-c(2^5, 2^10, 2^20)
+
+# c(2^5, 2^10, 2^20)
 ```
 
 
@@ -869,33 +1141,47 @@ hash diferentes:
 
 
 ```{r}
+# no. de candidatoas del flujo distintos
 n <- 1000
+
+# Función hash 1: composición del hash 1 y la cuenta de ceros en colas. 
 tail_hash_1 <- compose(tail_length, hash_1)
+
+# Función hash 2: composición del hash 2 y la cuenta de ceros en colas. 
 tail_hash_2 <- compose(tail_length, hash_2)
-df <- data_frame(num_distintos = 1:n) %>%
-      mutate(id = as.character(sample.int(52345678, n))) %>%
-      mutate(tail_1 = map_dbl(id, tail_hash_1)) %>%
-      mutate(tail_2 = map_dbl(id, tail_hash_2))
+
+# Datos 
+df <- data_frame(num_distintos = 1:n) %>% # no de candidatos
+      mutate(id = as.character(sample.int(52345678, n))) %>% # id del candidato 
+      mutate(tail_1 = map_dbl(id, tail_hash_1)) %>% # no de ceros en la cola con el hash1
+      mutate(tail_2 = map_dbl(id, tail_hash_2)) # no de ceros en la cola con el hash2
+
+# datos 
 df      
 ```
 
 Y ahora calculamos el máximo acumulado
 
 ```{r}
+# Calculamos el máximo acumulado para cada hash
 df <- df %>% mutate(max_tail_1 = cummax(tail_1), max_tail_2 = cummax(tail_2))
+
+#Vemos los máximos acumulados
 tail(df)
 ```
 
 ```{r}
+# Grafica hash 1 en escala logarítmica
 ggplot(df, aes(x = num_distintos, y = 2^max_tail_1)) + 
-  geom_abline(slope=1, xintercept = 0, colour = "red") + 
+  geom_abline(slope=1, intercept = 0, colour = "red") + 
   geom_point() +
   scale_x_log10() + scale_y_log10()
 ```
 
 ```{r}
+# Grafica hash 2 en escala logarítmica
 ggplot(df, aes(x = num_distintos, y = 2^max_tail_2)) + 
-  geom_abline(slope=1, xintercept = 0, colour = "red") + 
+  geom_abline(slope=1, intercept = 0, colour = "red") + 
   geom_point() +
   scale_x_log10() + scale_y_log10()
 ```
@@ -920,9 +1206,9 @@ de modo que esta opción no es muy buena.
 En nuestro ejemplo anterior, la desviación estándar del estimador es:
 
 ```{r}
-df_prob %>% group_by(n) %>%
-  mutate(media = sum((2^m)*probas)) %>%
-  summarise(desv_est = sqrt(sum(probas*(2^m-media)^2))) 
+df_prob %>% group_by(n) %>% # agrupa por no. de obs posibles
+  mutate(media = sum((2^m)*probas)) %>% # calcula la media 
+  summarise(desv_est = sqrt(sum(probas*(2^m-media)^2))) # calcula la ds
 ```
 
 - Usar la mediana para evitar la posible variación grande de este estimador tiene
@@ -961,33 +1247,55 @@ función para calcular la longitud de la cola una vez que quitamos los bits
 que indican la cubeta:
 
 ```{r}
+
+# Se fija el no de bits para construir las cubetas
 cubeta_bits <- 5
+
+# Se calcula m
 m <- 2^cubeta_bits
+
+# Tamaño de cola ceros al eliminar los primeros bits. 
 tail_length_lead <- function(bits){
   bits[-c(1:cubeta_bits)] %>% which.max %>% as.integer
 }
+
+# String de ejemplo
 hash_1("7yya40787")
+
+# Tamaño de la cola sin los 5 primeros bits
 hash_1("7yya40787") %>% tail_length_lead
+
+# Calcula la cubeta con los primeros bits
 cubeta <- function(bits){
   paste0(as.character(bits[1:cubeta_bits]), collapse = "")
 }
+
+# Calcula la cubeta para el ejemplo 
 hash_1("7yya40787") %>% cubeta
 ```
 
 Simulamos unos datos y calculamos la cubeta para cada dato:
 
 ```{r}
+
+# No. elems distintos (100 mil)
 n <- 100000
-df <- data_frame(num_distintos = 1:n) %>%
-      mutate(id = as.character(sample.int(52345678, n, replace = FALSE))) %>%
-      mutate(hash = map(id, hash_1)) %>%
-      mutate(cubeta = map_chr(hash, cubeta))
+
+# Se fija el no de bits para constuir las cubetas
+cubeta_bits <- 5
+
+# Datos simulados 
+df <- data_frame(num_distintos = 1:n) %>% # elems distintos
+      mutate(id = as.character(sample.int(52345678, n, replace = FALSE))) %>% # muesstreo de datos sin reemplazo
+      mutate(hash = map(id, hash_1)) %>% # aplica fn hash 1
+      mutate(cubeta = map_chr(hash, cubeta)) # Calcula cubeta
 df
 ```
 
 Y calculamos la longitud de la cola:
 
 ```{r}
+# Longitud de la cola sin los primeros bits 
 df <- df %>% mutate(tail = map_int(hash, tail_length_lead))
 df      
 ```
@@ -996,17 +1304,25 @@ Ahora vemos cómo calcular nuestra estimación. cuando hay 50 mil distintos, cal
 máximo por cubeta
 
 ```{r}
-resumen_50 <- df %>% filter(num_distintos <= 50000) %>% 
-    group_by(cubeta) %>% 
-    summarise(tail_max = max(tail))
+# Para 50mil elementos distintos
+resumen_50 <- df %>% # datos 
+  filter(num_distintos <= 50000) %>% # filtra obs
+    group_by(cubeta) %>% # agrupa por cubeta
+    summarise(tail_max = max(tail)) # obtiene el max de la cola
+
+# Resumen 
 resumen_50
 ```
 
 Y luego calculamos la media armónica y reescalamos para obtener:
 
 ```{r}
+# Función para calcular la media armónica
 armonica <- function(x) 1/mean(1/x)
+
+# Media armónica reescalada para 
 0.72 * m * armonica(2 ^ resumen_50$tail_max)
+
 ```
 
 Y esta es nuestra estimación de únicos en el momento que el verdadero valor
@@ -1017,15 +1333,21 @@ siguiente cálculo son necesarias algunas manipulaciones para poder calcular
 el estado del estimador a cada momento);
 
 ```{r}
-res <- df %>% spread(cubeta, tail, fill = 0) %>%
-        gather(cubeta, tail, -num_distintos, -id, -hash) %>%
-        select(num_distintos, cubeta, tail) 
+# Copleta las posibles combinaciones de cubeta y tamaño de cola
+res <- df %>% spread(cubeta, tail, fill = 0) %>% # convierte a wide por cubeta llenando el tamaño de cola maxima. 
+        gather(cubeta, tail, -num_distintos, -id, -hash) %>% # conviertea long eliminando distintos, id y hash
+        select(num_distintos, cubeta, tail)  # selecciona columnas
+
+# Agrupar por cubeta
 res_2 <- res %>% 
-      group_by(cubeta) %>%
-      arrange(num_distintos) %>%
-      mutate(tail_max = cummax(tail)) %>%
-      group_by(num_distintos) %>%
-      summarise(estimador_hll = 0.72*(m*armonica(2^tail_max)))
+      group_by(cubeta) %>% # agrupa por cubeta 
+      arrange(num_distintos) %>% # ordena por num_distintos
+      mutate(tail_max = cummax(tail)) %>% # maximo acumulado
+      group_by(num_distintos) %>% # agrupa por num_distintos
+      summarise(estimador_hll = 0.72*(m*armonica(2^tail_max))) # estima no distintos. 
+
+
+# grafica estimadores en cada momento
 ggplot(res_2 %>% filter(num_distintos > 100),
        aes(x = num_distintos, y = estimador_hll)) + geom_line() +
   geom_abline(slope = 1, colour ='red') 
@@ -1035,6 +1357,7 @@ ggplot(res_2 %>% filter(num_distintos > 100),
 Finalmente, examinamos el error relativo:
 
 ```{r}
+# Calculo de cuantiles del error 
 quantile(1 - res_2$estimador_hll/res_2$num_distintos, probs=c(0.1, 0.5, .9))
 ```
 
@@ -1047,24 +1370,34 @@ hashes de 64 bits en lugar de 32).
 
 - Las operaciones necearias son: aplicar la función hash, calcular cubeta, y actualizar
 el máximo de las cubetas. La única estructura que es necesario mantener es
-los máximos de las colas dentro de cada cubeta. que se actualiza secuencialmente.
+los máximos de las colas dentro de cada cubeta que se actualiza secuencialmente.
 
 ### Implementación de spark 
 
 La implementación de hyperloglog en Spark se puede utilizar con el siguiente código:
 
 ```{r}
+# Carga librería sparklyr
 library(sparklyr)
+
+# Conección a sparklyr
 sc <- spark_connect(master = "local") # esto normalmente no lo hacemos desde R
+
+# Copiar tabla de datos 
 df_tbl <- copy_to(sc, df %>% select(num_distintos, id))
+
+# Aproximación de no. distintos. 
 df_tbl %>%
-  summarise(unicos_hll = approx_count_distinct(id)) # error estándar relativo 0.05
+  summarise(unicos_hll = approx_count_distinct(id)) # error estándar relativo 0.05 
+
 ```
 
-### Tarea
+## Tarea{-}
 
-- Resuelve los dos ejercicios pendientes (uno en filtro de Bloom, otro en las sección de muestras uniformemente distribuidas
+- Resuelve los dos ejercicios pendientes (uno en filtro de Bloom, otro en la sección de muestras uniformemente distribuidas.
 
 - Repetir la estimación del hyperloglog del ejemplo de clase aumentando a 250-500 mil elementos distintos. Puedes utilizar la implementación de spark. ¿Qué errror relativo
-obtuviste? Nota: puedes usar la implementación en R que vimos en clase, pero ojo: las funciones hash que utilizamos son relativamente lentas.
+obtuviste? 
+
+Nota: puedes usar la implementación en R que vimos en clase, pero ojo: las funciones hash que utilizamos son relativamente lentas.
 
