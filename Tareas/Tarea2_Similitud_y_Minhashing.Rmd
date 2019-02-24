@@ -1,0 +1,688 @@
+---
+title: 'Tarea 2: Similitud y Minhashing'
+author: "Alejandra Lelo de Larrea Ibarra"
+date: "04/02/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,message=FALSE,warning=FALSE}
+library(tidyverse)
+library(knitr)
+library(textreuse)
+```
+
+### 1. Calcula la similitud de Jaccard de las cadenas "Este es el ejemplo 1" y "Este es el ejemplo 2", usando tejas de tamaño $3$.
+
+```{r}
+# Definimos los textos
+textos<-c("Este es el ejemplo 1","Este es el ejemplo 2")
+
+# Función para extraer las tejas
+shingle_chars <- function(string, k, lowercase = FALSE){
+  
+    # Extrae tejas de tamaño k para el string 
+    tokenizers::tokenize_character_shingles(string, n = k, lowercase = FALSE,
+        simplify = TRUE, strip_non_alphanum = FALSE)
+}
+
+# Extraemos las tejas
+tejas_textos <- map(textos, shingle_chars, k = 3)
+
+# Imprimimos las tejas 
+tejas_textos
+
+# Calculamos la intersección (num)
+num<-intersect(tejas_textos[[1]],tejas_textos[[2]])
+length(num)
+
+# Calculamos la unión (denom)
+denom<-union(tejas_textos[[1]],tejas_textos[[2]])
+length(denom)
+
+# Calculamos la similitud de Jaccard
+sim_jaccard<-length(num)/length(denom)
+sim_jaccard
+```
+
+### 2. Ejercicio de Leskovec, Rajaraman, and Ullman 2014
+
+Considera la siguiente matriz de tejas-documentos:
+
+```{r}
+mat <- matrix(c(0,1,0,1,0,1,0,0,1,0,0,1,0,0,1,0,0,0,1,1,1,0,0,0),
+              nrow = 6, byrow = TRUE)
+colnames(mat) <- c('d_1','d_2','d_3','d_4')
+rownames(mat) <- c(0,1,2,3,4,5)
+mat
+```
+
+##### 2.1 Sin permutar esta matriz, calcula la matriz de firmas minhash usando las siguientes funciones hash: $h_1(x) = (2x+1) \mod 6$, $h_2(x) = (3x+2) \mod 6$, $h_3(x)=(5x+2) \mod 6$.
+
+Recuerda que $a \mod 6$ es el residuo que se obtiene al dividir a entre $6$, por ejemplo $14 \mod 6 = 2$, y usa la numeración de renglones comenzando en $0$.
+
+Evaluamos las funciones hash en los renglones: 
+$$
+\begin{array}{c|ccc}
+r & h_1 & h_2 & h_3\\
+\hline
+0 & 1 & 2 & 2 \\ 
+1 & 3 & 5 & 1 \\
+2 & 5 & 2 & 0 \\
+3 & 1 & 5 & 5 \\ 
+4 & 3 & 2 & 4 \\
+5 & 5 & 5 & 3 \\
+\hline
+\end{array} 
+$$
+
+Inicio del algoritmo: 
+
+$$
+SIG=
+\begin{bmatrix}
+\infty & \infty & \infty & \infty \\ 
+\infty & \infty & \infty & \infty \\ 
+\infty & \infty & \infty & \infty
+\end{bmatrix} 
+$$
+
+**Renglon $0$: **
+
+Tenemos 1's en la columna 2 y 4, por lo tanto hay que comparar:
+
+$$
+col2=min\left\lbrace\begin{pmatrix}
+\infty \\
+\infty \\
+\infty \\
+\end{pmatrix},\begin{pmatrix}
+1 \\
+2 \\
+2\\
+\end{pmatrix}\right\rbrace=\begin{pmatrix}
+1 \\
+2 \\
+2\\
+\end{pmatrix}\qquad \text{y} \qquad col4=min\left\lbrace\begin{pmatrix}
+\infty \\
+\infty \\
+\infty \\
+\end{pmatrix},\begin{pmatrix}
+1 \\
+2 \\
+2\\
+\end{pmatrix}\right\rbrace = \begin{pmatrix}
+1 \\
+2 \\
+2\\
+\end{pmatrix}
+$$
+
+entonces 
+
+$$
+SIG_0=
+\begin{bmatrix}
+\infty & 1 & \infty & 1 \\ 
+\infty & 2 & \infty & 2 \\ 
+\infty & 2 & \infty & 2
+\end{bmatrix} 
+$$
+
+
+**Renglon $1$: **
+
+Tenemos 1's sólo en la columna 2 por lo tanto hay que comparar:
+
+$$
+col1=min\left\lbrace\begin{pmatrix}
+1 \\
+2 \\
+2 \\
+\end{pmatrix},\begin{pmatrix}
+3 \\
+5 \\
+1\\
+\end{pmatrix}\right\rbrace = \begin{pmatrix}
+1 \\
+2 \\
+1\\
+\end{pmatrix}
+$$
+
+entonces 
+
+$$
+SIG_1=
+\begin{bmatrix}
+\infty & 1 & \infty & 1 \\ 
+\infty & 2 & \infty & 2 \\ 
+\infty & 1 & \infty & 2
+\end{bmatrix} 
+$$
+
+**Renglon $2$: **
+
+Tenemos 1's en la columna 1 y 4 por lo tanto hay que comparar:
+
+$$
+col1=min\left\lbrace\begin{pmatrix}
+\infty \\
+\infty \\
+\infty \\
+\end{pmatrix},\begin{pmatrix}
+5 \\
+2 \\
+0\\
+\end{pmatrix}\right\rbrace=\begin{pmatrix}
+5 \\
+2 \\
+0\\
+\end{pmatrix}\qquad \text{y} \qquad col4=min\left\lbrace\begin{pmatrix}
+1 \\
+2 \\
+2 \\
+\end{pmatrix},\begin{pmatrix}
+5 \\
+2 \\
+0\\
+\end{pmatrix}\right\rbrace=\begin{pmatrix}
+1 \\
+2 \\
+0\\
+\end{pmatrix}
+$$
+
+entonces 
+
+$$
+SIG_2=
+\begin{bmatrix}
+5 & 1 & \infty & 1 \\ 
+2 & 2 & \infty & 2 \\ 
+0 & 1 & \infty & 0
+\end{bmatrix} 
+$$
+
+
+**Renglon $3$: **
+
+Tenemos 1's sólo en la columna 3, por lo tanto hay que comparar:
+
+$$
+col3=min\left\lbrace\begin{pmatrix}
+\infty \\
+\infty \\
+\infty \\
+\end{pmatrix},\begin{pmatrix}
+1 \\
+5 \\
+5\\
+\end{pmatrix}\right\rbrace=\begin{pmatrix}
+1 \\
+5 \\
+5\\
+\end{pmatrix}
+$$
+
+entonces 
+
+$$
+SIG_3=
+\begin{bmatrix}
+5 & 1 & 1 & 1 \\ 
+2 & 2 & 5 & 2 \\ 
+0 & 1 & 5 & 0
+\end{bmatrix} 
+$$
+
+
+**Renglon $4$: **
+
+Tenemos 1's sólo en la columna 3 y 4, por lo tanto hay que comparar:
+
+$$
+col3=min\left\lbrace\begin{pmatrix}
+1 \\
+5 \\
+5\\
+\end{pmatrix},\begin{pmatrix}
+3 \\
+2 \\
+4\\
+\end{pmatrix}\right\rbrace=\begin{pmatrix}
+1 \\
+2 \\
+4\\
+\end{pmatrix}\qquad \text{y} \qquad col4=min\left\lbrace\begin{pmatrix}
+1 \\
+2 \\
+0 \\
+\end{pmatrix},\begin{pmatrix}
+3 \\
+2 \\
+4\\
+\end{pmatrix}\right\rbrace=\begin{pmatrix}
+1 \\
+2 \\
+0\\
+\end{pmatrix}
+$$
+
+entonces 
+
+$$
+SIG_4=
+\begin{bmatrix}
+5 & 1 & 1 & 1 \\ 
+2 & 2 & 2 & 2 \\ 
+0 & 1 & 4 & 0
+\end{bmatrix} 
+$$
+
+**Renglon $5$: **
+
+Tenemos 1's sólo en la columna 1, por lo tanto hay que comparar:
+
+$$
+col1=min\left\lbrace\begin{pmatrix}
+5 \\
+2 \\
+0\\
+\end{pmatrix},\begin{pmatrix}
+5 \\
+5 \\
+3\\
+\end{pmatrix}\right\rbrace=\begin{pmatrix}
+5 \\
+2 \\
+0\\
+\end{pmatrix}
+$$
+
+entonces 
+
+$$
+SIG_5=
+\begin{bmatrix}
+5 & 1 & 1 & 1 \\ 
+2 & 2 & 2 & 2 \\ 
+0 & 1 & 4 & 0
+\end{bmatrix} 
+$$
+
+##### 2.2 Compara tu resultado usando el algoritmo por renglón que vimos en clase y usando el algoritmo por columna (el mínimo hash de los números de renglón que tienen un $1$).
+
+Primero definimos las funciones hash del ejercicio: 
+
+```{r}
+# Funciones Hash
+# Nota se resta un uno a x para que los renglones empiecen en 0. 
+h1 <- function(x){(2*(x-1) +1) %% 6}
+h2 <- function(x){(3*(x-1) +2) %% 6}
+h3 <- function(x){(5*(x-1) +2) %% 6}
+
+# Hacemos una lista con las funciones. 
+hash_f<-list(h1,h2,h3)
+
+```
+
+** Algoritmo por renglón** 
+
+Escribimos el arlgoritmo para extraer las firmas con funciones hash en lugar de permutaciones por renglón:
+
+```{r}
+# Función para calcular firmas de documentos con 
+# funciones hash en lugar de permutaciones. 
+calc_firmas_hash <- function(mat_df, hash_f){
+  
+    # Extrae el no. de funciones
+    num_hashes <- length(hash_f)
+    
+    # Inicializa la matriz de firmas en infinitos. 
+    # No. de filas = no. permutaciones (hashes), no. de columnas = no.     documentos. 
+    firmas <- matrix(Inf, ncol = ncol(mat_df), nrow = num_hashes)
+    
+    # Para cada fila de la matriz de tejas: 
+    for(r in 1:nrow(mat_df)){
+        # Extrae las columnas distintas de cero. 
+        indices <- mat_df[r, ] > 0
+        
+        # Selecciona el mínimo (elemento a elemento) entre el valor de la matriz de firmas y 
+        # El valor de la función hash en r
+        firmas[, indices] <- pmin(firmas[, indices], map_dbl(hash_f, ~.(r)))
+    }
+    
+    # Devuelve las firmas. 
+    firmas
+}
+
+# Calculamos la matriz de firmas
+firmas_renglon<-calc_firmas_hash(mat,hash_f)%>% as_data_frame()
+colnames(firmas_renglon)<-paste("Doc",1:4,sep="_")
+
+
+# Matriz de firmas
+firmas_renglon
+```
+
+y vemos que obtuvimos el mismo restuldado que haciendo el ejercicio a mano. 
+
+** Algoritmo por columna (documento)** 
+
+Escribimos el arlgoritmo para extraer las firmas con funciones hash en lugar de permutaciones por documento:
+
+```{r}
+# Funciones Hash
+# Nota se resta un uno a x para que los renglones empiecen en 0. 
+h1 <- function(x){(2*(x) +1) %% 6}
+h2 <- function(x){(3*(x) +2) %% 6}
+h3 <- function(x){(5*(x) +2) %% 6}
+
+# Hacemos una lista con las funciones. 
+hash_f<-list(h1,h2,h3)
+
+```
+
+```{r}
+# Función para crear tejas por documento
+crear_tejas_doc <- function(mat){
+  
+    # Se extrae el no de documentos 
+    num_docs <- ncol(mat)
+    
+    # crear tejas únicas por documento 
+    tejas <- apply(mat,2,function(x){rownames(mat)[which(x==1)]})
+    
+    # Dataframe con documento y tejass
+    tejas_df <- data_frame(texto_id = 1:num_docs, shingles = tejas) %>%
+        unnest %>% #se conviert a data frame
+        group_by(texto_id) %>% # se agrupa por documento 
+        summarise(shingles = list(shingles)) # se hace una lista de las tejas 
+    
+    # Lista de salida con tejas, no de doc. y tamaño de tejas 
+    list(tejas = tejas_df$shingles, num_docs = num_docs)
+}
+
+# Función para calcular firmas de documentos con 
+# funciones hash en lugar de permutaciones por documento 
+calc_firmas_hash_doc <- function(tejas_doc, hash_f){
+    
+    # Extrae el no. de documentos 
+    num_docs <- tejas_doc$num_docs
+    
+    # Extrae el no. de hashes
+    num_hashes<-length(hash_f)
+    
+    # Extraen las tejas
+    tejas<-lapply(tejas_doc$tejas,as.numeric)
+    
+    # Inicializa la matriz de firmas en infinitos. 
+    # No. de filas = no. permutaciones (hashes), no. de columnas = no.     documentos. 
+    firmas <- vector("list",num_docs)
+    
+    # Para cada fila de la matriz de tejas: 
+    for(i in 1:num_docs){
+        
+        # El valor de la función hash en r
+        firmas[[i]] <- map_dbl(hash_f, ~ min(.x(tejas[[i]])))
+    }
+    
+    # Se crea un data frame
+    firmas
+}
+
+
+# Obtenemos las tejas por documento 
+tejas_doc<-crear_tejas_doc(mat)
+
+# Calculamos la matriz de firmas
+firmas_columna<-calc_firmas_hash_doc(tejas_doc,hash_f)%>%
+  unlist()%>%
+  matrix(ncol=4,nrow=3,byrow=FALSE)%>%
+  as_data_frame()
+
+colnames(firmas_columna)<-paste("Doc",1:4,sep="_")
+
+
+# Matriz de firmas
+firmas_columna
+```
+
+y vemos que obtenemos un resultado distinto. 
+
+
+##### 2.3 ¿Cuál de estas funciones hash son verdaderas permutaciones?
+
+Sólo $h_3$ es una verdadera permutación de los renglones pues es la única que mapea cada renglón a un numero del 0 al 5 distinto. Las funciones $h_1$ y $h_2$ mapean distintos renglones al mismo número.   
+  
+##### 2.4 ¿Qué tan cerca están las similitudes de Jaccard estimadas por minhash de las verdaderas similitudes?
+```{r}
+# Calculamos similitudes verdaderas
+Sim_Jaccard<-data_frame(Docs=paste("Doc",c(1,1,1,2,2,3)," vs Doc",c(2,3,4,3,4,4),sep=""),
+                        SJ_Verdadera=c(length(which(mat[,1] == 1 & mat[,2]==1))/length(which(mat[,1] == 1 | mat[,2]==1)),
+                                       length(which(mat[,1] == 1 & mat[,3]==1))/length(which(mat[,1] == 1 | mat[,3]==1)),
+                                       length(which(mat[,1] == 1 & mat[,4]==1))/length(which(mat[,1] == 1 | mat[,4]==1)),
+                                       length(which(mat[,2] == 1 & mat[,3]==1))/length(which(mat[,2] == 1 | mat[,3]==1)),
+                                       length(which(mat[,2] == 1 & mat[,4]==1))/length(which(mat[,2] == 1 | mat[,4]==1)),
+                                       length(which(mat[,3] == 1 & mat[,4]==1))/length(which(mat[,3] == 1 | mat[,4]==1))),
+                        SJ_MH_Renglon=c(mean(firmas_renglon$Doc_1 == firmas_renglon$Doc_2),
+                                        mean(firmas_renglon$Doc_1 == firmas_renglon$Doc_3),
+                                        mean(firmas_renglon$Doc_1 == firmas_renglon$Doc_4),
+                                        mean(firmas_renglon$Doc_2 == firmas_renglon$Doc_3),
+                                        mean(firmas_renglon$Doc_2 == firmas_renglon$Doc_4),
+                                        mean(firmas_renglon$Doc_3 == firmas_renglon$Doc_4)),
+                        SJ_MH_Columna=c(mean(firmas_columna$Doc_1 == firmas_columna$Doc_2),
+                                        mean(firmas_columna$Doc_1 == firmas_columna$Doc_3),
+                                        mean(firmas_columna$Doc_1 == firmas_columna$Doc_4),
+                                        mean(firmas_columna$Doc_2 == firmas_columna$Doc_3),
+                                        mean(firmas_columna$Doc_2 == firmas_columna$Doc_4),
+                                        mean(firmas_columna$Doc_3 == firmas_columna$Doc_4)))
+
+# Imprimimos las comparación
+DT::datatable(Sim_Jaccard%>%
+    mutate_if(is.numeric, funs(round(., 3))))
+```
+
+### 3. (Opcional) Funciones hash. Como vimos en clase, podemos directamente hacer hash de las tejas (que son cadenas de texto), en lugar de usar hashes de números enteros (número de renglón). Para lo siguiente, puedes usar la función *hash_string* del paquete *textreuse* (o usar la función  *pyhash.murmur3_32* de la librería *pyhash*):
+
+##### 3.1 Calcula valores hash de algunas cadenas como 'a', 'Este es el ejemplo 1', 'Este es el ejemplo 2'. 
+```{r}
+textreuse::hash_string("a")
+textreuse::hash_string("Este es el ejemplo 1")
+textreuse::hash_string("Este es el ejemplo 2")
+```
+Nota: la implmentación en c++ está vacía, por lo tanto dependiendo de la computadora puede dar distintos hashes. Si usamos todos el docker, debemos obtener el mismo valor. Para evitar esto podemos usar las funciones digest. 
+
+```{r}
+digest::digest("Este es el ejemplo 1","xxhash32") # el segundo argumento es el tipo de algoritmo. 
+# digest::digest("Este es el ejemplo 1","xxhash32")%>%stroi(16) # el segundo argumento es el tipo de algoritmo. 
+```
+Estos son más robustos en el sentido de que no tienen patrones. 
+
+
+##### 3.2 Calcula los valores hash para las tejas de tamaño $3$ de 'Este es el ejemplo 1'. ¿Cuántos valores obtienes?
+```{r}
+# Definimos el texto
+texto1<-"Este es el ejemplo 1"
+
+# Calculamos las tejas
+tejas_texto1 <-map(texto1, shingle_chars, k = 3)
+
+# Sacamos los hashes
+result_texto1<-data_frame(tejas=unlist(tejas_texto1),
+                          hashes=lapply(tejas_texto1,hash_string)%>%unlist)
+
+DT::datatable(result_texto1)
+```
+
+##### 3.3 Usa los números del inciso anterior para calcular el valor minhash del texto anterior. 
+```{r}
+minhash1<-min(result_texto1$hashes)
+minhash1 
+```
+
+##### 3.4 Repite para la cadena 'Este es otro ejemplo.', y usa este par de minhashes para estimar la similitud de Jaccard (en general usamos más funciones minhash para tener una buena estimación, no solo una!).
+
+```{r}
+# Definimos el texto
+texto2<-"Este es otro ejemplo"
+
+# Calculamos las tejas
+tejas_texto2 <-map(texto2, shingle_chars, k = 3)
+
+# Sacamos los hashes
+result_texto2<-data_frame(tejas=unlist(tejas_texto2),
+                          hashes=lapply(tejas_texto2,hash_string)%>%unlist)
+
+DT::datatable(result_texto2)
+```
+
+```{r}
+minhash2<-min(result_texto2$hashes)
+minhash2
+```
+
+La similitud es distinta por lo tanto, la similitud de jaccard sería cero. 
+
+
+##### 3.5 Repite los pasos anteriores para  $10$ funciones minhash (puedes usar *minhash_generator* de *textreuse*, o usar distintas semillas para *pyhash.murmur3_32*, o algunas de las funciones que generan funciones hash que vimos en clase).
+
+
+
+
+### 4. Utiliza el código visto en clase para encontrar pares de similitud alta en la colección de tweets que vimos en clase. Utiliza unos $15$ hashes para encontrar tweets casi duplicados. ¿Cuántos tweets duplicados encontraste? ¿Qué pasa si usas menos o más funciones hash?
+
+Primero leemos los tweets
+
+```{r, message=FALSE, warning=FALSE}
+# Ruta de los datos
+ruta <- "../datos/FIFA.csv"
+
+# ruta google storage para descargar los datos. 
+gc_ruta <- "https://storage.googleapis.com/fifa_tweets/FIFA.csv"
+
+if(!file.exists(ruta)){
+    # si el archivo no existe, descarga los datos. 
+    download.file(gc_ruta, ruta)
+} else {
+    # si el archivo existe, carga los datoss.
+    fifa <- read_csv("../datos/FIFA.csv")
+}
+
+# Extrae los tweets
+tw <- fifa$Tweet
+
+
+# No. de tweets
+length(tw)
+```
+
+Creamos funciones para extaer tejas por renglon, para generar hashs modulares y para calcular la matriz de firmas 
+
+```{r}
+# genera las funciones minhash
+minhash<-minhash_generator(15)
+
+# Lee los tweets, genera tejas de tamaño 5 y evalua los minhashes.  
+system.time(
+corpus_tweets <- TextReuseCorpus(text = tw[1:10000], # 200 mil tweets
+    tokenizer = shingle_chars, k = 5, lowercase = FALSE, # tejas de tamaño 5
+    hash_func = minhash, keep_tokens = TRUE, # minhas generados
+    keep_text = TRUE, skip_short = FALSE)
+)
+
+# Extrae las firmas por documento 
+min_hashes<-hashes(corpus_tweets)
+
+
+# Generamos una partición. Como cada documento tiene 15 hashes,
+# hacemos la partición de 3 en 3 
+particion <- split(1:15, ceiling(1:15 / 5))
+particion
+```
+
+```{r}
+# Función para separar cubetas 
+separar_cubetas_fun <- function(particion){
+  
+    function(firma){
+              
+        map_chr(particion, function(x){
+            # Junta los elementos de la partición
+            prefijo <- paste0(x, collapse = '')
+            
+            # Pega la firma con comas (porque hay negativos)
+            cubeta <- paste(firma[x], collapse = ",")
+            
+            # Pega los elementos de la partición y la firma. 
+            paste(c(prefijo, cubeta), collapse = '|')
+        })
+    }
+}
+
+# Evaluamos la función para separar cubetas en la partición definida
+sep_cubetas <- separar_cubetas_fun(particion)
+
+# Extrae id de documento y la cubeta correspondiente. 
+firmas_2<-data_frame(doc_id=names(lapply(min_hashes,sep_cubetas)),
+                     cubeta=lapply(min_hashes, sep_cubetas))%>%
+  unnest()%>%
+  mutate(doc_id=as.integer(substring(doc_id,5)))
+
+head(firmas_2)
+```
+
+```{r}  
+# Se agrupa por cubeta y se listan los documentos en cada uno
+cubetas_df <- firmas_2 %>% group_by(cubeta) %>% 
+    summarise(docs = list(doc_id)) %>% 
+    mutate(n_docs = map_int(docs, length)) 
+
+# Se filtran las cubetas con más de un elemento
+candidatos <- cubetas_df %>% filter(n_docs > 1)
+
+head(candidatos)
+```
+
+```{r}
+# Función para extraer pares de similitud alta
+extraer_pares <- function(candidatos, cubeta, docs, textos = NULL){
+  
+   enq_cubeta <- enquo(cubeta) 
+   
+   enq_docs <- enquo(docs) 
+   
+   pares <- candidatos %>% 
+    mutate(pares = map(!!enq_docs, ~ combn(sort(.x), 2, simplify = FALSE))) %>% # Genera pares de documentos de los listados en candidatos
+    select(!!enq_cubeta, pares) %>% unnest %>% 
+    mutate(a = map_int(pares, 1)) %>% 
+    mutate(b = map_int(pares, 2)) %>% 
+    select(-pares) %>% select(-!!enq_cubeta) %>% unique
+   if(!is.null(textos)){
+       pares <- pares %>% mutate(texto_a = textos[a], texto_b = textos[b])
+   }
+   pares
+}
+
+# se obtienen los pares similares
+system.time(
+  pares_similares<-extraer_pares(candidatos, cubeta, docs, textos = tw[1:10000])%>% arrange(texto_a)
+)
+
+# No. de pares similares
+nrow(pares_similares)
+
+DT::datatable(pares_similares)
+
+```
+
+
+a
+
+
+

@@ -1,0 +1,456 @@
+---
+title: 'Tarea 4: Procesamiento de Flujos'
+author: "Alejandra Lelo de Larrea Ibarra"
+date: "24/02/2019"
+output: 
+  html_document:
+    toc: TRUE
+    toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Filtro de Bloom (diccionario)
+
+## Datos del diccionario
+```{r}
+# Librerias
+library(tidyverse)
+
+# Leemos las palabras en el diccionario (Español)
+diccionario <- read_csv("../datos/diccionario/es_dic.txt", col_names = FALSE) %>% 
+          pluck("X1")
+
+# nota: el encoding del diccionario debe ser utf-8
+# diccionario <- iconv(diccionario, to = "UTF-8")
+
+# No de palabras en el diccionario. 
+m <- length(diccionario)
+m
+```
+
+# Parámetros
+```{r}
+# no de bits 
+n <- 8e6
+
+# Tamaño del conjunto a insertar
+s = 300000
+
+# No de funciones hash. 
+k=6 
+
+
+# Calculo de falsos positivos 
+tasa_fp <- function(n, s, k) {
+    (1 - (1 - (1 / n)) ^ (k * s)) ^ k
+}
+
+# proba de falsos positivos 
+tasa_fp(n,s,k)
+```
+
+## Funciones hash
+
+```{r}
+# Carga librerías
+library(digest)
+
+# Fija la semilla 
+set.seed(18823)
+
+# Genera las k funciones hash con modulo n. 
+hash_generator <- function(k = 1, n){
+  
+  # Fija las semillas. 
+  seeds <- sample.int(652346, k)
+  
+  # Función hash final.
+  hasher <- function(x){
+    
+    # Extrae la semillas
+    sapply(seeds, function(s){
+      # en digest, serialize puede ser false, pues trabajamos con cadenas
+      # la salida de xxhash32 son 8 caracteres hexadecimales, pero 
+      # solo tomamos 7 para poder convertir a un entero
+      sub_str <- substr(digest::digest(tolower(x), "xxhash32",
+                                       serialize = FALSE, seed = s), 1, 7)
+      
+      # convierte a base hexadecimal y luego modulo n
+      strtoi(sub_str, base = 16L) %% n + 1
+    })
+  }
+  hasher
+}
+
+```
+
+## Filtro de Bloom
+
+```{r}
+
+filtro_bloom <- function(num_hashes, n){
+  
+    # representación del vector de bits
+    v <- raw(n) 
+    
+    # Genera las funciones hash modulo n
+    hashes <- hash_generator(num_hashes, n)
+    
+    # Insertar palabras del diccionario
+    insertar <- function(x){
+        x <- iconv(x, "utf-8")
+        
+        # Nota: esta v es la v del ambiente anterior, lleva la doble flecha para 
+        # decirle a R que busque en el ambiente anterior a esta función. 
+        # Si pongo la flecha simple va a arrojar un error porque no existe un v en esta función. 
+        v[hashes(x)] <<- as.raw(1)
+    }
+    
+    # Función para checar si está en filtro. 
+    en_filtro <- function(x){
+        
+        # Revisa si las posiciones de los hashes dados son todas iguales a uno. 
+        all(as.logical(v[hashes(x)]))
+    }
+    
+    # Función para devolver el vector v. 
+    vec <- function() v
+    
+    # Retorno de la función. Notar que todas las salidas refieren al mismo vector v. Cuando acutalizo un valor, se actualiza para todas las salidas. 
+    filtro <- list(insertar = insertar, en_filtro = en_filtro, vec = vec)
+    
+    # Retorno
+    filtro
+}
+
+```
+
+## Sugerencias de corrección de ortografía
+
+```{r}
+# Busca palabras cercanas haciendo eliminaciones, sustituciones, transposiciones o inserciones. 
+generar_dist_1 <- function(palabra){
+  
+  caracteres <- c(letters, 'á', 'é', 'í', 'ó', 'ú', 'ñ')
+  
+  # Parte el string en dos partes tomando cada posicion como separador en cada elemento del vector. 
+  # Ejem: para la palabra casa tenemos: "" - casa, c-asa, ca-sa, cas-a, casa-""
+  pares <- lapply(0:(nchar(palabra)), function(i){
+    c(str_sub(palabra, 1, i), str_sub(palabra, i+1, nchar(palabra)))
+  })
+  
+  # palabras obtenidas al eliminar una letra. 
+  eliminaciones <- pares %>% map(function(x){ paste0(x[1], str_sub(x[2],2,-1))})
+  
+  # Palabras obtenidas de sustituir una letra por otra del diccionario
+  # (en cada posición) incluyendo acetos y la ñ. 
+  sustituciones <- pares %>% map(function(x)
+      map(caracteres, function(car){
+    paste0(x[1], car, str_sub(x[2], 2 ,-1))
+  })) %>% flatten 
+  
+  # Palabras obtenidas de agregar una letra del diccionario en cada
+  # posición incluyendo acentos y la ñ
+  inserciones <- pares %>% map(function(x){
+    map(caracteres, function(car) paste0(x[1], car, x[2]))
+  }) %>% flatten
+  
+  # Palabras obtenidas de intercambiar dos letras consecutivas 
+  transposiciones <- pares %>% map(function(x){
+    paste0(x[1], str_sub(x[2],2,2), str_sub(x[2],1,1), str_sub(x[2],3,-1))
+  })
+  
+  # Junta todas las posibles palabras. 
+  c(eliminaciones, sustituciones, transposiciones, inserciones) %>% unlist
+}
+```
+
+## Correr filtro
+
+```{r}
+# Fija la semilla 
+set.seed(812)
+
+# Crea el filtro de bloom con 6 hashes y 8 millones de bits. 
+filtro_b <- filtro_bloom(num_hashes = k, n = n)
+
+# insertar palabras de diccionario
+system.time(
+    for(i in seq_along(diccionario)){
+        filtro_b$insertar(diccionario[i])
+    })
+```
+
+## Buscar palabras que no estén en el diccionario
+
+Encuentra alguna palabra del español que no esté en el filtro.
+
+```{r}
+palabras_faltantes<-c("mixote",
+                      "chocolate",
+                      "Chapulin",
+                      "mixteco",
+                      "churro")
+
+df_faltantes<-tibble(palabra=palabras_faltantes)%>%
+  mutate(En_Diccionario=map_lgl(palabra,filtro_b$en_filtro))
+
+df_faltantes
+```
+
+Agrégala al filtro y verifica que es detectada como positiva.
+
+```{r}
+# Nos quedamos con las palabras que no están en el filtro. 
+df_faltantes<-filter(df_faltantes,En_Diccionario==FALSE)
+
+# Las agergamos al filtro
+aux<-lapply(df_faltantes$palabra,filtro_b$insertar)
+
+# Verificamos que esten detectadas como positivas
+df_faltantes<-df_faltantes %>%
+  mutate(En_Diccionario=map_lgl(palabra,filtro_b$en_filtro))
+
+df_faltantes
+```
+
+Busca una manera incorrecta de escribirla y prueba la función de sugerencias. 
+
+```{r}
+# Forma incorrecta de escribir las palabras
+incorrectas<-c("mizote","capulin","mitxeco")
+
+# Función para aplicar el corrector de ortografía 
+corrector<-function(x) generar_dist_1(x)%>%keep(filtro_b$en_filtro)
+
+lapply(incorrectas,corrector)
+```
+
+## Menos bits 
+
+### Parámetros 
+
+```{r}
+df <- expand.grid(list(s = 300000, # valores a insertar
+                  k = 1:10, # no. funciones hash
+                  n = c(0.4e6,0.5e6,0.6e6,0.7e6) # no bits. 
+                  )) %>%
+      mutate(millones_bits = (n/1e6)) %>% # convierte a millones 
+      mutate(tasa_falsos_p = tasa_fp(n, s, k)) %>% # calcula proba de falsos pos. 
+      mutate(s_str = paste0(s, ' insertados'))
+
+
+# Grafica de análisis de filtro de bloom
+ggplot(df, aes(x = k, y = tasa_falsos_p, 
+               colour=factor(millones_bits), group=millones_bits)) + 
+               geom_line(size=1.2) +
+               facet_wrap(~s_str) +
+               labs(x="k = número de hashes", 
+                    colour = "Mill bits \n en vector") +
+               scale_x_continuous(breaks=1:10,labels=1:10)
+               scale_y_log10(breaks= c(0.0001, 0.001, 0.01, 0.1))
+```
+
+```{r}
+# no de bits 
+n <- 5e5
+
+# Tamaño del conjunto a insertar
+s = 300000
+
+# No de funciones hash. 
+k=1
+
+
+# Calculo de falsos positivos 
+tasa_fp <- function(n, s, k) {
+    (1 - (1 - (1 / n)) ^ (k * s)) ^ k
+}
+
+# proba de falsos positivos 
+tasa_fp(n,s,k)
+```
+
+
+## Correr filtro
+
+```{r}
+# Fija la semilla 
+set.seed(812)
+
+# Crea el filtro de bloom con 6 hashes y 8 millones de bits. 
+filtro_b <- filtro_bloom(num_hashes = k, n = n)
+
+# insertar palabras de diccionario
+system.time(
+    for(i in seq_along(diccionario)){
+        filtro_b$insertar(diccionario[i])
+    })
+```
+
+## Buscar palabras que no estén en el diccionario
+
+Encuentra alguna palabra del español que no esté en el filtro.
+
+```{r}
+palabras_faltantes<-c("mixote",
+                      "chocolate",
+                      "Chapulin",
+                      "mixteco",
+                      "churro")
+
+df_faltantes<-tibble(palabra=palabras_faltantes)%>%
+  mutate(En_Diccionario=map_lgl(palabra,filtro_b$en_filtro))
+
+df_faltantes
+```
+
+Agrégala al filtro y verifica que es detectada como positiva.
+
+```{r}
+# Nos quedamos con las palabras que no están en el filtro. 
+df_faltantes<-filter(df_faltantes,En_Diccionario==FALSE)
+
+# Las agergamos al filtro
+aux<-lapply(df_faltantes$palabra,filtro_b$insertar)
+
+# Verificamos que esten detectadas como positivas
+df_faltantes<-df_faltantes %>%
+  mutate(En_Diccionario=map_lgl(palabra,filtro_b$en_filtro))
+
+df_faltantes
+```
+
+Busca una manera incorrecta de escribirla y prueba la función de sugerencias. 
+
+```{r}
+# Forma incorrecta de escribir las palabras
+incorrectas<-c("mizote","capulin","mitxeco")
+
+# Función para aplicar el corrector de ortografía 
+corrector<-function(x) generar_dist_1(x)%>%keep(filtro_b$en_filtro)
+
+lapply(incorrectas,corrector)
+```
+
+# Muestra distribuida uniformemente en el flujo
+
+Sea $k$ el tamaño de la muestra (fijo), sea $n_0$ el flujo histórico y sea $n$ el flujo completo al llegar una nueva observación (es decir $n=n_0+1$). Tomemos la observación $i$ del flujo: 
+
+* Si $i>n_0$ entonces se selecciona para ser parte de la muestra con probabilidad $k/n$. 
+
+* Si $i\leq n0$ la probabilidad de que ya esté en la muestra es $k/n_0$ y es necesario que no sea seleccionado para ser eliminado $1-\tfrac{1}{k}=\tfrac{k-1}{k}$ i.e. la probabilidad de mantenerse en la muestra es $\tfrac{k}{n_0}\tfrac{k-1}{k}$
+
+
+# Combinación de estimadores hyperloglog
+
+```{r}
+# Función hash para cadenas
+hash_gen <- function(seed){
+  
+  # Función hash para la semilla específica
+  function(x){
+    
+    # Genera una función hash con el algoritmo xxhash32 (strings de tamaño 8)
+    hash_32 <- digest::digest(x, 'xxhash32', serialize = FALSE, seed = seed) 
+    
+    # Covertimos a bits, tomando de dos en dos:
+    # Esta implementación es lenta
+    sapply(seq(1, nchar(hash_32), 2), function(x) substr(hash_32, x, x+1)) %>% # toma 2 caracteres
+        strtoi(16L) %>% # convierte strings a entero de acuerdo con la base dada
+      as.raw %>% rawToBits()
+  }
+}
+
+# Fija la semilla 
+set.seed(5451)
+
+# Genera las funciones hash 
+hash_1 <- hash_gen(seed = 123)
+hash_2 <- hash_gen(seed = 564)
+
+
+# Tamaño de cola ceros al eliminar los primeros bits. 
+tail_length_lead <- function(bits){
+  bits[-c(1:cubeta_bits)] %>% which.max %>% as.integer
+}
+
+
+# Calcula la cubeta con los primeros bits
+cubeta <- function(bits){
+  paste0(as.character(bits[1:cubeta_bits]), collapse = "")
+}
+
+# No. elems distintos (100 mil)
+n <- 250000
+
+# Se fija el no de bits para construir las cubetas
+cubeta_bits <- 5
+
+# Se calcula m
+m <- 2^cubeta_bits
+
+# Datos simulados 
+df <- data_frame(num_distintos = 1:n) %>% # elems distintos
+      mutate(id = as.character(sample.int(52345678, n, replace = FALSE))) %>% # muestreo de datos sin reemplazo
+      mutate(hash = map(id, hash_1)) %>% # aplica fn hash 1
+      mutate(cubeta = map_chr(hash, cubeta)) # Calcula cubeta
+df
+
+
+# Longitud de la cola sin los primeros bits 
+df <- df %>% mutate(tail = map_int(hash, tail_length_lead))
+df 
+```
+
+Ahora vemos cómo calcular nuestra estimación. cuando hay 50 mil distintos, calculamos
+máximo por cubeta
+
+```{r}
+# Para 50mil elementos distintos
+resumen<- df %>% # datos 
+  filter(num_distintos <= n) %>% # filtra obs
+    group_by(cubeta) %>% # agrupa por cubeta
+    summarise(tail_max = max(tail)) # obtiene el max de la cola
+
+# Resumen 
+resumen
+
+# Función para calcular la media armónica
+armonica <- function(x) 1/mean(1/x)
+
+# Media armónica reescalada para 
+0.72 * m * armonica(2 ^ resumen$tail_max)
+
+```
+
+```{r}
+# Copleta las posibles combinaciones de cubeta y tamaño de cola
+res <- df %>% spread(cubeta, tail, fill = 0) %>% # convierte a wide por cubeta llenando el tamaño de cola maxima. 
+        gather(cubeta, tail, -num_distintos, -id, -hash) %>% # conviertea long eliminando distintos, id y hash
+        select(num_distintos, cubeta, tail)  # selecciona columnas
+
+# Agrupar por cubeta
+res_2 <- res %>% 
+      group_by(cubeta) %>% # agrupa por cubeta 
+      arrange(num_distintos) %>% # ordena por num_distintos
+      mutate(tail_max = cummax(tail)) %>% # maximo acumulado
+      group_by(num_distintos) %>% # agrupa por num_distintos
+      summarise(estimador_hll = 0.72*(m*armonica(2^tail_max))) # estima no distintos. 
+
+
+# grafica estimadores en cada momento
+ggplot(res_2 %>% filter(num_distintos > 100),
+       aes(x = num_distintos, y = estimador_hll)) + geom_line() +
+  geom_abline(slope = 1, colour ='red') 
+
+```
+
+```{r}
+# Calculo de cuantiles del error 
+quantile(1 - res_2$estimador_hll/res_2$num_distintos, probs=c(0.1, 0.5, .9))
+```
+

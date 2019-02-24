@@ -1,0 +1,884 @@
+---
+title: 'Tarea 3: Locally Sensitive Hashing'
+author: "Alejandra Lelo de Larrea Ibarra"
+date: "17/02/2019"
+output: 
+  html_document:
+    toc: TRUE
+    toc_depth: 3
+---
+
+# Ejercicio 1: (b,r)=(8,3)
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# theme_set(theme_bw())
+cb_palette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+En este ejemplo veremos como usar LSH 
+para encontrar registros
+que se refieren al mismo elemento pero están en distintas tablas, 
+y pueden diferir en cómo están registrados (entity matching).
+
+```{r,message=FALSE,warning=FALSE}
+library(tidyverse)
+library(knitr)
+library(textreuse)
+```
+
+## Datos
+
+Los [datos](https://dbs.uni-leipzig.de/de/research/projects/object_matching/fever/benchmark_datasets_for_entity_resolution) para este ejempo particular trata con dos fuentes bibliográficas (DBLP, ACM)
+de artículos y conferencias de cómputo. La carpeta del repositorio
+es datos/similitud/entity-matching. **El objetivo es parear las dos fuentes para
+identificar artículos que se presentaron en las dos referencias.**
+
+```{r, warning=FALSE, message=FALSE}
+# Datos conferencias
+acm <- read_csv('../datos/similitud/entity_matching/ACM.csv')
+
+# Datos artículos 
+dbl <- read_csv('../datos/similitud/entity_matching/DBLP2.csv')
+```
+
+```{r}
+# Veamos los datos 
+head(acm)
+head(dbl)
+
+# No. de observaciones 
+nrow(acm)
+nrow(dbl)
+```
+
+
+**Pregunta**: ¿si intentas una aproximación por fuerza bruta, cuántas comparaciones 
+tendrías que hacer?  
+
+**Respuesta**: 
+Tendría que comparar todos los elementos de la primer tabla vs todos los elementos de la segunda tabla uno a uno. Esto es: $(2294)\times (2616)=6,001,104$
+
+
+**Pregunta**: Si cada tabla contuviera unos 2 millones de documentos, ¿sería
+factible hacer todas las posibles comparaciones?
+
+**Respuesta**:
+No, con 2 millones en cada tabla tendría que hacer $(2\times 10^6)(2\times 10^6)=4\times 10^{12}$ i.e. 4 billones lo que es impensable. 
+
+
+## Shingling y hashing
+
+Vamos a poner todos los documentos en una sola lista. Aunque al final
+encontremos elementos de la misma fuente en la misma cubeta, podemos
+filtrar estos. En este caso escogemos 24 hashes agrupados en 8 bandas, y 
+shingles de tamaño 4, y usamos sólo título y autor como elementos del documento.
+
+### Extraer textos 
+```{r}
+acm_1 <- acm %>% select(id, title, authors) %>% # Selecciona id, titulo y autor
+        mutate(texto = paste(title, authors, sep = "    ")) %>%  # Pega titulo y autor en una cadena de texto
+        mutate(origen = "ACM") %>% # Columna con la tabla de origen
+        mutate(id = as.character(id)) # convierte el id a caracter.
+
+dbl_1 <- dbl %>% select(id, title, authors) %>% # Selecciona id, titulo y autor
+         mutate(texto = paste(title, authors, sep = "    ")) %>% # Pega titulo y autor en una cadena de texto
+         mutate(origen = "DBL") # Columna con la tabla de origen 
+
+acm_dbl <- bind_rows(acm_1, dbl_1) # junta las dos fuentes de datos. 
+```
+
+
+**Pregunta**: ¿por qué incluimos algún espacio en blanco entre título y autor?
+¿Qué otra estrategia se te ocurre para convertir en tejas?
+
+
+**Respuesta:**
+
+Debido a que se va utilizar el título de la conferencia/publicación y el nombre del autor para encontrar registros que parecen en ambas tablas se convierten estos elementos como el texto (documento) a analizar en similitud. Dado aque se van a tomar tejas de tamaño 4, al poner las tejas de tamaño 4 garantizas que ninguna teja comparta información del título y del autor. Si no se incluyeran, podría pasar que una teja con el final del título e inicio del autor apareciera más veces dentro del puro título de otra observación y obtener una estimación incorrecta de la similitud. 
+
+
+Otra opción que se me ocurre, es obtener por serparado las tejas del título y las tejas del autor y luego incluirlas todas en el mismo vector. De esta manera, tampoco se comparte información entre las tejas del título y del autor. 
+
+
+### Obtener tejas
+```{r}
+# Función para extraer las tejas
+shingle_chars <- function(string, lowercase = TRUE, k = 4){
+  # produce shingles (con repeticiones)
+  if(lowercase) {
+    # convierte todo a minúsculas
+    string <- str_to_lower(string) 
+  }
+  
+  shingles <- seq(1, nchar(string) - k + 1) %>% # posiciones de las tejas extraer
+    map_chr(function(x) substr(string, x, x + k - 1)) # extrae tejas 
+  shingles # devuelve tejas 
+}
+```
+
+En este ejemplo podemos usar *textreuse*:
+
+### Generar funciones hash y corpus
+
+```{r}
+# Fija la semilla 
+set.seed(88345)
+
+# Genera 24 funciones has. 
+minhasher <- minhash_generator(24)
+
+# Extrae los id de las 2 tablas (documentos) 
+# nombres <- c(acm_1$id, dbl_1$id)
+nombres <- acm_dbl$id
+
+# Extrae las cadenas (artículo, autor)  
+# texto <- c(acm_1$texto, dbl_1$texto)
+texto<-acm_dbl$texto
+
+# Asigna los nombres al texto
+names(texto) <- nombres
+
+# Extrae las firmas por documento con los hashes generados y usando tejas de tamaño 4. 
+corpus <- TextReuseCorpus(text = texto,
+                          minhash_func = minhasher,
+                          tokenizer = shingle_chars, k = 4, lowercase = TRUE,
+                          progress = FALSE, skip_short = FALSE)
+corpus
+```
+
+### Extraer firmas y calcular cubetas 
+Se extraen las firmas para los 4,910 "documentos" disponibles. Construimos las firmas y calculamos cubetas:
+
+```{r}
+# Buscamos las parejas candidatos para el corpus anteiror usando 8 bandas de tamaño 3
+lsh_conf <- lsh(corpus, bands = 8) 
+head(lsh_conf)
+```
+
+**Pregunta**: examina la tabla *lsh_conf*. ¿Qué significa cada columna?
+Describe cómo construimos en clase la columna *buckets*.
+
+
+**Respuesta:** 
+
+La tabla *lsh_conf* consiste de dos columnas: *doc* y *buckets*. La columna *doc* contiene el id original de los documentos (en este caso funciona con el título del documento) y la columna *buckets* contiene la cubeta a la que partenece el artículo. 
+
+
+En clase, la columna *buckets* se construye a partir de la firma del documento. Dado que se generaron 24 funciones hash, entonces se tienen 8 bandas de 3 elementos. De esta manera, la primer cubeta se crea "pegando" el indice las primeras tres firmas (i.e. 123) junto con el valor de las primeras tres firmas (ie firma1-firma2-firma3); la segunda cubeta se crea "pegando" el índice de las siguientes tres firmas (i.e. 456) junto con el valor de las siguientse tres firmas (ie firma4-firma5-firma6) y así sucesivamente. Posteriormente se aplicó otra función hash fija para normalizar los nombres de las cubetas. 
+
+**Pregunta**: Haz una gráfica mostrando qué porcentaje de cada nivel
+de similitud tiene probabilidad de ser capturado para este problema.
+¿Te parece satisfactoria la curva para este problema?
+Explica en qué casos esto sería razonable. Si consideras apropiado
+cambia estos número.
+
+```{r}
+
+graficar_curvas <- function(df_br, colour = TRUE){
+  # extrae tamaño de bandas
+  r <- df_br$r 
+  # extrae no. de bandas 
+  b <- df_br$b
+  
+  # Para cada pareja (r,b) calcula la prob de que un par sea candidato para
+  # distintos valores de similitud de jaccard. 
+  curvas_similitud <- data_frame(b = b, r = r) %>%
+    group_by(r, b) %>%
+    mutate(datos = map2(r, b, function(r, b){
+          df_out <- data_frame(s = seq(0, 1, 0.01)) %>% 
+            mutate(prob = 1 - (1 - s ^ r) ^b)
+          df_out 
+          })) %>% unnest
+  
+  # Grafica las salidas
+  graf_salida <- ggplot(curvas_similitud, aes(x = s, y = prob, 
+          colour = as.factor(interaction(b,r)))) +
+          geom_line(size=1.1) + 
+          labs(x = 'similitud', y= 'probablidad de ser candidato',
+          colour = 'b.r') 
+  if(colour){
+    graf_salida + scale_colour_manual(values = cb_palette)
+  }
+  graf_salida
+}
+
+graficar_curvas(data_frame(r=c(1,2,3,4,6,8,12,24),
+                           b=c(24,12,8,6,4,3,2,1)))+
+  theme_bw()+
+  geom_vline(xintercept=0.75,lty=2)+
+  geom_hline(yintercept=c(0.75),lty=2)
+```
+
+La gráfica anterior muestra todas las posibles combinaciones (b,r) para un total de 24 hashes. Las parejas (b,r) con b grande y r chica (roja y amarilla) asiganan una alta probabilidad de ser candidatos a pares con simiiltud muy baja, por lo que no son buena opción. Las parejas (b,r) con b muy baja y r alta (turquesa, azul, morada y rosa) asignan muy baja probablidad de ser candidatos a pares con similitud alta. En cambio parejas (b,r) con valores intermedios (8,3) o (6,4)  tienene una mejor distribución en el sentido de que pares con similitud alta tienene probabilidad alta de ser candidatos.
+
+Si queremos identificar la misma publicación presentada en una conferencia en dos tablas distintas, estamos buscando una similitud muy alta entre los documentos, de lo contrario podríamos identificar presentaciones de un mismo autor pero sobre artículos distintos. La combinación (6,4) es más estricta y podría ser otra buena opción aunque podríamos dejar fuera varios falsos positivos. Sin embargo, con la combinación (8,3) podemos "dejar pasar" algunos falsos negativos y luego filtarlos Por lo tanto, utiizaremos la configuración $(8,3)$. 
+
+
+## Extraer pares candidatos
+
+Agrupamos cubetas y extraemos pares similares. En *textreuse* se puede
+hacer como sigue:
+
+```{r}
+# Extraer pares candidatos
+candidatos <- lsh_candidates(lsh_conf)
+
+# Examinamos la salida. 
+head(candidatos) 
+
+# No de pares candidatos. 
+nrow(candidatos)
+```
+
+Calculamos también la similitud de jaccard exacta para cada par y luego podemos filtrar.
+
+```{r}
+candidatos <- lsh_compare(candidatos, corpus, jaccard_similarity)
+candidatos
+```
+
+**Pregunta**: explica cómo se calcula la columna *score* en la tabla de candidatos. 
+
+Por ejemplo, para el primer par candidato se tiene los siguiente: 
+```{r}
+corpus[["174639"]]
+
+corpus[["journals/tods/SalemGS94"]]
+```
+
+Podemos ver que el contenido es prácitamente el mismo. Sólo cambió el orden de los autores.  Veamos los hashes 
+
+```{r}
+# Extrae los hashes para el primer documento del par 1 
+hashes_1<-corpus[["174639"]]$hashes
+hashes_1
+
+# Extrae los hashes para el segundo documento del par 1 
+hashes_2<-corpus[["journals/tods/SalemGS94"]]$hashes
+hashes_2
+```
+
+El score se calcula como la similitud de Jaccard: cardinalidad de la intersección de hashes entre cardinalidad de la unión de los hashes: 
+
+```{r}
+# Calcula intersección de hashes
+a<-length(intersect(hashes_1,hashes_2))
+
+# Calcula unión de hashes
+b<- length(union(hashes_1,hashes_2))
+
+# Similitud de Jaccard
+a/b
+```
+
+De hecho, en este caso, la diferencia está en los caracteres especiales como Héctor o García. De lo contrario, la similitud hubiera sido mucho más grande.
+
+<span style="color:red"> 
+Duda: el orden del documento afecta la similitud verdad? ¿Ayudaría el preprocesamiento? ¿Qué se hace con los caracteres especiales?
+</span>
+
+**Pregunta**: 
+¿Cuántas comparaciones tuviste qué hacer (cálculos de similitud)? Compara con el total
+de comparaciones que es posible hacer entre estas dos tablas.
+
+**Respuesta**: 
+Tenemos un total de 12,181 pares candidatos que es equivalente al 0.2% de los pares potenciales. 
+
+
+Ahora eliminamos candidatos que aparecieron en la misma tabla (misma referencia bibliográfica):
+
+```{r}
+ # Se agrega origen del doc a.
+candidatos <-  candidatos %>% left_join(acm_dbl %>% select(id, origen) %>% rename(a = id, origen_a = origen)) 
+
+ # se agrega origen del doc b.
+candidatos <-  candidatos %>% left_join(acm_dbl %>% select(id, origen) %>% rename(b = id, origen_b = origen)) 
+
+# Se eliminan candidatos de la misma fuente
+candidatos_dif <- candidatos %>% filter(origen_a != origen_b) 
+
+nrow(candidatos_dif) # no final de candidatos
+```
+
+
+**Pregunta**: 
+¿Cuántos pares candidatos obtuviste?
+Examina algunos elementos con similitud uno o cercana a uno. ¿Se refieren al
+mismo artículo en las dos fuentes? 
+
+**Respuesta**: De los 12,181 pares originlaes, ahora sólo tenemos 6,837. Veamos algunos pares con similitud alta: 
+
+```{r}
+candidatos_altasim<-candidatos_dif%>%arrange(desc(score))
+
+# Par con menor similitud
+candidatos_altasim$score[1]
+corpus[[candidatos_altasim$a[1]]]$content
+corpus[[candidatos_altasim$b[1]]]$content
+
+candidatos_altasim$score[500]
+corpus[[candidatos_altasim$a[500]]]$content
+corpus[[candidatos_altasim$b[500]]]$content
+
+candidatos_altasim$score[1500]
+corpus[[candidatos_altasim$a[1500]]]$content
+corpus[[candidatos_altasim$b[1500]]]$content
+
+candidatos_altasim$score[2000]
+corpus[[candidatos_altasim$a[2000]]]$content
+corpus[[candidatos_altasim$b[2000]]]$content
+
+candidatos_altasim$score[2500]
+corpus[[candidatos_altasim$a[2500]]]$content
+corpus[[candidatos_altasim$b[2500]]]$content
+```
+
+Efectivamente, los pares con similitud alta se refieren al mismo artículo. En algunos casos la similitud no es uno ya que se cambió el orden de los autores.  
+
+**Pregunta**: 
+
+Ahora considera los elementos 
+con similitud más baja que capturaste. Examina varios casos y concluye
+si hay pares que no se refieren al mismo artículo, y por qué.
+
+```{r}
+candidatos_bajasim<-candidatos_dif%>%arrange(score)
+
+# Par con menor similitud
+candidatos_bajasim$score[1]
+corpus[[candidatos_bajasim$a[1]]]$content
+corpus[[candidatos_bajasim$b[1]]]$content
+
+candidatos_bajasim$score[500]
+corpus[[candidatos_bajasim$a[500]]]$content
+corpus[[candidatos_bajasim$b[500]]]$content
+
+candidatos_bajasim$score[1500]
+corpus[[candidatos_bajasim$a[1500]]]$content
+corpus[[candidatos_bajasim$b[1500]]]$content
+
+candidatos_bajasim$score[2000]
+corpus[[candidatos_bajasim$a[2000]]]$content
+corpus[[candidatos_bajasim$b[2000]]]$content
+
+candidatos_bajasim$score[2500]
+corpus[[candidatos_bajasim$a[2500]]]$content
+corpus[[candidatos_bajasim$b[2500]]]$content
+
+
+```
+
+Efectivamente, hay pares que no se refieren al mismo artículo. En algunos casos coinciden palabras del título o apellidos de algún autor, además del espacio que separa el titulo de los autores. 
+
+**Pregunta**: propón un punto de corte de similitud para la tabla de arriba, según tus observaciones de la pregunta anterior.
+
+Dado que para el análisis de pares con alta similitud obtuvimos artículos distintos para la observación 2500 con una similitud de 0.44 mientras que obtuvimos el mismo artículo para la observación 2000 con una similitud de 0.75; fijamos un punto de corte de 0.5 para la los candidatos. 
+
+```{r}
+candidatos_filt<-candidatos_dif%>%
+  arrange(desc(score))%>%
+  filter(score>0.5)
+
+nrow(candidatos_filt)
+```
+
+De esta manera, obtenemos un total de 2,421 pares candidatos. 
+
+
+## Examinar pares candidatos
+
+
+**Pregunta** Evalúa tus resultados con las respuestas
+correctas, que están en la carpeta de los datos.
+
+
+```{r}
+# Leemos los verdaderos resultados 
+mapping <- read_csv("../datos/similitud/entity_matching/DBLP-ACM_perfectMapping.csv")
+head(mapping)
+```
+
+Crea variables apropiadas para hacer join de los verdaderos matches con tus candidatos:
+
+```{r}
+candidatos_filt <- candidatos_filt %>% mutate(idDBLP = ifelse(str_detect(a, "^[0-9]*$"), b, a))
+candidatos_filt <- candidatos_filt %>% mutate(idACM = ifelse(str_detect(a, "^[0-9]*$"), a, b))
+
+```
+
+Podemos calcular el número de pares verdaderos que son candidatos (recuperados), el número de pares
+candidatos que son candidatos pero no son pares verdaderos, por ejemplo:
+
+```{r}
+# Convierte el id de la tabla ACM a caracter
+mapping <- mapping %>% mutate(idACM = as.character(idACM))
+
+# Positivos (reales)
+pos<-nrow(mapping)
+pos
+
+# Encuentra pares candidatos en ambas tablas (pares verdaderos)
+ambos <- inner_join(candidatos_filt, mapping)
+
+# Candidatos filtrados (predecidos positivos)
+pred.pos<-nrow(candidatos_filt)
+pred.pos
+
+# Verdaderos positivos
+pv<-nrow(ambos)
+pv
+
+# Falsos positivos (no se repite y lo detecté ocmo que si)
+falso_positivo<-anti_join(candidatos_filt,mapping)
+fp<-nrow(falso_positivo)
+fp
+
+# Falso negativo (si se repiten pero no lo detecté)
+falso_negativo<-anti_join(mapping, candidatos_filt)
+fn<-nrow(falso_negativo)
+fn
+```
+
+En realidad, se tienen un total de 2,224 documentos repetidos en ambas fuentes (positivos). Con el método encontramos 2,421 pares candidatos finales, que clasificamos como iguales (positivos predecidos). De estos, sólo 2,155 sí son verdaderos pares candidatos (verdaderos positivos). 
+
+*Pregunta*: Evalúa precisión y recall de tu método. Para distintas aplicaciones que te puedas imaginar, ¿qué tan buenos son estos resultados?
+
+```{r}
+precision<-pv/pred.pos
+print(paste("Precision=", round(precision,4),sep=""))
+
+recall<-pv/pos
+print(paste("Recall=",round(recall,4),sep=""))
+
+tfn<-fn/pos
+print(paste("TFN=",round(tfn,4),sep=""))
+```
+
+Los resultados son buenos ya que se captura el 96% de los artículos que realmente aparecen en ambas fuentes; sin embargo, tenemos varios falsos positivos que podrían mejorarse cambiando el umbral para el score.  Además, la tasa de falsos negativos, (ie artículos que sí estaban en ambas fuentes pero no los detecté) es muy baja. 
+
+## Análisis de errores
+
+Considera algunos casos que fallamos en recuperar como candidatos
+
+```{r}
+head(falso_negativo)
+```
+
+```{r}
+corpus[[falso_negativo$idDBLP[1]]]$content
+corpus[[falso_negativo$idACM[1]]]$content
+
+corpus[[falso_negativo$idDBLP[10]]]$content
+corpus[[falso_negativo$idACM[10]]]$content
+
+corpus[[falso_negativo$idDBLP[20]]]$content
+corpus[[falso_negativo$idACM[20]]]$content
+
+corpus[[falso_negativo$idDBLP[30]]]$content
+corpus[[falso_negativo$idACM[30]]]$content
+
+corpus[[falso_negativo$idDBLP[40]]]$content
+corpus[[falso_negativo$idACM[40]]]$content
+
+corpus[[falso_negativo$idDBLP[50]]]$content
+corpus[[falso_negativo$idACM[50]]]$content
+
+corpus[[falso_negativo$idDBLP[65]]]$content
+corpus[[falso_negativo$idACM[65]]]$content
+```
+
+**Pregunta**: Considerando estos errores, ¿qué se te ocurre para mejorar el método?
+
+Errores: título movido de orden, titulo acordado, demasiados autores en distinto orden, autores con o sin siglas de segundos nombres.
+
+Hacer un preprocesamiento de los datos, para ordenar autores alfabéticamente y probablemente considerar ponerlos en el formato Apellido, inicial. 
+
+# Ejercicio 2: (b,r)=(6,4)
+
+Corre este ejemplo con un número distinto de hashes y bandas. Usaremos la otra opción de bandas y tamaño de bandas que se había contemplado $(b,r)=(6,4)$.  
+
+
+## Extraer firmas y calcular cubetas 
+Se extraen las firmas para los 4,910 "documentos" disponibles. Construimos las firmas y calculamos cubetas:
+
+```{r}
+# Buscamos las parejas candidatos para el corpus anteiror usando 8 bandas de tamaño 3
+lsh_conf <- lsh(corpus, bands = 8) 
+head(lsh_conf)
+```
+
+## Extraer pares candidatos
+
+Agrupamos cubetas y extraemos pares similares. En *textreuse* se puede
+hacer como sigue:
+
+```{r}
+# Extraer pares candidatos
+candidatos <- lsh_candidates(lsh_conf)
+
+# Examinamos la salida. 
+head(candidatos) 
+
+# No de pares candidatos. 
+nrow(candidatos)
+```
+
+Calculamos también la similitud de jaccard exacta para cada par y luego podemos filtrar.
+
+```{r}
+candidatos <- lsh_compare(candidatos, corpus, jaccard_similarity)
+```
+
+**Pregunta**: 
+¿Cuántas comparaciones tuviste qué hacer (cálculos de similitud)? Compara con el total
+de comparaciones que es posible hacer entre estas dos tablas.
+
+**Respuesta**: 
+Tenemos un total de 12,181 pares candidatos (igual que en el primer ejercicio) que es equivalente al 0.2% de los pares potenciales. 
+
+Ahora eliminamos candidatos que aparecieron en la misma tabla (misma referencia bibliográfica):
+
+```{r}
+ # Se agrega origen del doc a.
+candidatos <-  candidatos %>% left_join(acm_dbl %>% select(id, origen) %>% rename(a = id, origen_a = origen)) 
+
+ # se agrega origen del doc b.
+candidatos <-  candidatos %>% left_join(acm_dbl %>% select(id, origen) %>% rename(b = id, origen_b = origen)) 
+
+# Se eliminan candidatos de la misma fuente
+candidatos_dif <- candidatos %>% filter(origen_a != origen_b) 
+
+nrow(candidatos_dif) # no final de candidatos
+```
+
+
+**Pregunta**: 
+¿Cuántos pares candidatos obtuviste?
+Examina algunos elementos con similitud uno o cercana a uno. ¿Se refieren al
+mismo artículo en las dos fuentes? 
+
+**Respuesta**: De los 12,181 pares originlaes, ahora sólo tenemos 6,837 (igual que antes). Veamos algunos pares con similitud alta: 
+
+
+**Pregunta**: propón un punto de corte de similitud para la tabla de arriba, según tus observaciones de la pregunta anterior.
+
+Se elige el mismo punto de corte que antes para que sean comparables
+```{r}
+candidatos_filt<-candidatos_dif%>%
+  arrange(desc(score))%>%
+  filter(score>0.5)
+
+nrow(candidatos_filt)
+```
+
+De esta manera, obtenemos el mismo total de 2,421 pares candidatos que antes. 
+
+
+## Examinar pares candidatos
+
+
+**Pregunta** Evalúa tus resultados con las respuestas
+correctas, que están en la carpeta de los datos.
+
+
+```{r}
+# Leemos los verdaderos resultados 
+mapping <- read_csv("../datos/similitud/entity_matching/DBLP-ACM_perfectMapping.csv")
+head(mapping)
+```
+
+Crea variables apropiadas para hacer join de los verdaderos matches con tus candidatos:
+
+```{r}
+candidatos_filt <- candidatos_filt %>% mutate(idDBLP = ifelse(str_detect(a, "^[0-9]*$"), b, a))
+candidatos_filt <- candidatos_filt %>% mutate(idACM = ifelse(str_detect(a, "^[0-9]*$"), a, b))
+
+```
+
+Podemos calcular el número de pares verdaderos que son candidatos (recuperados), el número de pares
+candidatos que son candidatos pero no son pares verdaderos, por ejemplo:
+
+```{r}
+# Convierte el id de la tabla ACM a caracter
+mapping <- mapping %>% mutate(idACM = as.character(idACM))
+
+# Positivos (reales)
+pos<-nrow(mapping)
+pos
+
+# Encuentra pares candidatos en ambas tablas (pares verdaderos)
+ambos <- inner_join(candidatos_filt, mapping)
+
+# Candidatos filtrados (predecidos positivos)
+pred.pos<-nrow(candidatos_filt)
+pred.pos
+
+# Verdaderos positivos
+pv<-nrow(ambos)
+pv
+
+# Falsos positivos (no se repite y lo detecté ocmo que si)
+falso_positivo<-anti_join(candidatos_filt,mapping)
+fp<-nrow(falso_positivo)
+fp
+
+# Falso negativo (si se repiten pero no lo detecté)
+falso_negativo<-anti_join(mapping, candidatos_filt)
+fn<-nrow(falso_negativo)
+fn
+```
+
+En realidad, se tienen un total de 2,224 documentos repetidos en ambas fuentes (positivos). Con el método encontramos 2,421 pares candidatos finales, que clasificamos como iguales (positivos predecidos). De estos, sólo 2,155 sí son verdaderos pares candidatos (verdaderos positivos). 
+
+*Pregunta*: Evalúa precisión y recall de tu método. Para distintas aplicaciones que te puedas imaginar, ¿qué tan buenos son estos resultados?
+
+```{r}
+precision<-pv/pred.pos
+print(paste("Precision=", round(precision,4),sep=""))
+
+recall<-pv/pos
+print(paste("Recall=",round(recall,4),sep=""))
+
+tfn<-fn/pos
+print(paste("TFN=",round(tfn,4),sep=""))
+```
+
+Los resultados son buenos ya que se captura el 96% de los artículos que realmente aparecen en ambas fuentes; sin embargo, tenemos varios falsos positivos que podrían mejorarse cambiando el umbral para el score.  Además, la tasa de falsos negativos, (ie artículos que sí estaban en ambas fuentes pero no los detecté) es muy baja. 
+
+## Análisis de errores
+
+Considera algunos casos que fallamos en recuperar como candidatos
+
+```{r}
+head(falso_negativo)
+```
+
+```{r}
+corpus[[falso_negativo$idDBLP[1]]]$content
+corpus[[falso_negativo$idACM[1]]]$content
+
+corpus[[falso_negativo$idDBLP[10]]]$content
+corpus[[falso_negativo$idACM[10]]]$content
+
+corpus[[falso_negativo$idDBLP[20]]]$content
+corpus[[falso_negativo$idACM[20]]]$content
+
+corpus[[falso_negativo$idDBLP[30]]]$content
+corpus[[falso_negativo$idACM[30]]]$content
+
+corpus[[falso_negativo$idDBLP[40]]]$content
+corpus[[falso_negativo$idACM[40]]]$content
+
+corpus[[falso_negativo$idDBLP[50]]]$content
+corpus[[falso_negativo$idACM[50]]]$content
+
+corpus[[falso_negativo$idDBLP[65]]]$content
+corpus[[falso_negativo$idACM[65]]]$content
+```
+
+**Pregunta**: Considerando estos errores, ¿qué se te ocurre para mejorar el método?
+
+Errores: título movido de orden, titulo acordado, demasiados autores en distinto orden, autores con o sin siglas de segundos nombres.
+
+Hacer un preprocesamiento de los datos, para ordenar autores alfabéticamente y probablemente considerar ponerlos en el formato Apellido, inicial. 
+
+# Ejercicio 3: h=6
+
+¿Puedes obtener buenos resultados con un número menor de hashes totales (por ejemplo, 4 o 6)? ¿Qué pasa si usas muchas bandas ($b$ con 
+pocos hashes ($r$) por banda?
+
+
+## Shingling y hashing
+
+Vamos a poner todos los documentos en una sola lista. Aunque al final
+encontremos elementos de la misma fuente en la misma cubeta, podemos
+filtrar estos. En este caso escogemos 6 hashes y 
+shingles de tamaño 4, y usamos sólo título y autor como elementos del documento.
+
+### Generar funciones hash y corpus
+
+```{r}
+# Fija la semilla 
+set.seed(88345)
+
+# Genera 6 funciones has. 
+minhasher <- minhash_generator(6)
+
+# Extrae los id de las 2 tablas (documentos) 
+# nombres <- c(acm_1$id, dbl_1$id)
+nombres <- acm_dbl$id
+
+# Extrae las cadenas (artículo, autor)  
+# texto <- c(acm_1$texto, dbl_1$texto)
+texto<-acm_dbl$texto
+
+# Asigna los nombres al texto
+names(texto) <- nombres
+
+# Extrae las firmas por documento con los hashes generados y usando tejas de tamaño 4. 
+corpus <- TextReuseCorpus(text = texto,
+                          minhash_func = minhasher,
+                          tokenizer = shingle_chars, k = 4, lowercase = TRUE,
+                          progress = FALSE, skip_short = FALSE)
+corpus
+```
+
+### Extraer firmas y calcular cubetas 
+Se extraen las firmas para los 4,910 "documentos" disponibles.
+
+```{r}
+graficar_curvas(data_frame(r=c(1,2,3,6),
+                           b=c(6,3,2,1)))+
+  theme_bw()+
+  geom_vline(xintercept=0.75,lty=2)+
+  geom_hline(yintercept=c(0.75),lty=2)
+```
+Construimos las firmas y calculamos cubetas usando 3 bandas de tamaño 2:
+
+```{r}
+# Buscamos las parejas candidatos para el corpus anteiror usando 8 bandas de tamaño 3
+lsh_conf <- lsh(corpus, bands = 3) 
+head(lsh_conf)
+```
+
+
+## Extraer pares candidatos
+
+Agrupamos cubetas y extraemos pares similares. En *textreuse* se puede
+hacer como sigue:
+
+```{r}
+# Extraer pares candidatos
+candidatos <- lsh_candidates(lsh_conf)
+
+# Examinamos la salida. 
+head(candidatos) 
+
+# No de pares candidatos. 
+nrow(candidatos)
+```
+
+Calculamos también la similitud de jaccard exacta para cada par y luego podemos filtrar.
+
+```{r}
+candidatos <- lsh_compare(candidatos, corpus, jaccard_similarity)
+candidatos
+```
+
+
+**Pregunta**: 
+¿Cuántas comparaciones tuviste qué hacer (cálculos de similitud)? Compara con el total
+de comparaciones que es posible hacer entre estas dos tablas.
+
+**Respuesta**: 
+Tenemos un total de 19,655 pares candidatos (mucho más que antes) que es equivalente al 0.32% de los pares potenciales. 
+
+
+Ahora eliminamos candidatos que aparecieron en la misma tabla (misma referencia bibliográfica):
+
+```{r}
+ # Se agrega origen del doc a.
+candidatos <-  candidatos %>% left_join(acm_dbl %>% select(id, origen) %>% rename(a = id, origen_a = origen)) 
+
+ # se agrega origen del doc b.
+candidatos <-  candidatos %>% left_join(acm_dbl %>% select(id, origen) %>% rename(b = id, origen_b = origen)) 
+
+# Se eliminan candidatos de la misma fuente
+candidatos_dif <- candidatos %>% filter(origen_a != origen_b) 
+
+nrow(candidatos_dif) # no final de candidatos
+```
+
+
+**Pregunta**: 
+¿Cuántos pares candidatos obtuviste?
+Examina algunos elementos con similitud uno o cercana a uno. ¿Se refieren al
+mismo artículo en las dos fuentes? 
+
+**Respuesta**: De los 19,665 pares originlaes, ahora sólo tenemos 10,657 (vs 6,837 de antes) 
+
+**Pregunta**: propón un punto de corte de similitud para la tabla de arriba, según tus observaciones de la pregunta anterior.
+
+Dejamos el mismo punto de corte para poder comparar 
+
+```{r}
+candidatos_filt<-candidatos_dif%>%
+  arrange(desc(score))%>%
+  filter(score>0.5)
+
+nrow(candidatos_filt)
+```
+
+De esta manera, obtenemos un total de 2,421 pares candidatos. 
+
+
+## Examinar pares candidatos
+
+
+**Pregunta** Evalúa tus resultados con las respuestas
+correctas, que están en la carpeta de los datos.
+
+
+```{r}
+# Leemos los verdaderos resultados 
+mapping <- read_csv("../datos/similitud/entity_matching/DBLP-ACM_perfectMapping.csv")
+head(mapping)
+```
+
+Crea variables apropiadas para hacer join de los verdaderos matches con tus candidatos:
+
+```{r}
+candidatos_filt <- candidatos_filt %>% mutate(idDBLP = ifelse(str_detect(a, "^[0-9]*$"), b, a))
+candidatos_filt <- candidatos_filt %>% mutate(idACM = ifelse(str_detect(a, "^[0-9]*$"), a, b))
+
+```
+
+Podemos calcular el número de pares verdaderos que son candidatos (recuperados), el número de pares
+candidatos que son candidatos pero no son pares verdaderos, por ejemplo:
+
+```{r}
+# Convierte el id de la tabla ACM a caracter
+mapping <- mapping %>% mutate(idACM = as.character(idACM))
+
+# Positivos (reales)
+pos<-nrow(mapping)
+pos
+
+# Encuentra pares candidatos en ambas tablas (pares verdaderos)
+ambos <- inner_join(candidatos_filt, mapping)
+
+# Candidatos filtrados (predecidos positivos)
+pred.pos<-nrow(candidatos_filt)
+pred.pos
+
+# Verdaderos positivos
+pv<-nrow(ambos)
+pv
+
+# Falsos positivos (no se repite y lo detecté ocmo que si)
+falso_positivo<-anti_join(candidatos_filt,mapping)
+fp<-nrow(falso_positivo)
+fp
+
+# Falso negativo (si se repiten pero no lo detecté)
+falso_negativo<-anti_join(mapping, candidatos_filt)
+fn<-nrow(falso_negativo)
+fn
+```
+
+En realidad, se tienen un total de 2,224 documentos repetidos en ambas fuentes (positivos). Con el método encontramos 2,421 pares candidatos finales, que clasificamos como iguales (positivos predecidos). De estos, sólo 2,155 sí son verdaderos pares candidatos (verdaderos positivos). 
+
+*Pregunta*: Evalúa precisión y recall de tu método. Para distintas aplicaciones que te puedas imaginar, ¿qué tan buenos son estos resultados?
+
+```{r}
+precision<-pv/pred.pos
+print(paste("Precision=", round(precision,4),sep=""))
+
+recall<-pv/pos
+print(paste("Recall=",round(recall,4),sep=""))
+
+tfn<-fn/pos
+print(paste("TFN=",round(tfn,4),sep=""))
+```
+
+la precision aumento de 0.89 a .90, el recall disminuyó de 0.96 a 0.94, y la tasa de falsos negativos de 0.031 a 0.05. 

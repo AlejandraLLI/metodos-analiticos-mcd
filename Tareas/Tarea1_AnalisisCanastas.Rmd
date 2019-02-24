@@ -1,0 +1,661 @@
+---
+title: "Tarea 1: Análisis de Canastas"
+author: "Alejandra Lelo de Larrea Ibarra"
+date: "24/1/2019"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Directorio de trabajo
+setwd("~/ma/metodos-analiticos-mcd/Tareas")
+```
+
+# Librerías
+```{r, message=FALSE, warning=FALSE}
+# Cargamos librerías
+library(arules)
+library(arulesViz)
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+```
+
+# Datos 
+
+Leemos los datos de **recetas** para poder hacer el análisis. 
+
+```{r}
+# Leemos los datos de recetas. 
+datos<-read_csv('../datos/recetas/srep00196-s3.csv')
+
+#otras opciones a explorar: read.transactions(), read_lines_chunked() 
+```
+
+Regiones: 
+```{r}
+# Extraemos las regiones existentes
+unique(datos$region)
+```
+
+```{r}
+# Función para filtrar los datos por la región que quieras y generar el
+# formato de transacciones
+creaTransacciones<-function(Region='LatinAmerican',data=datos){
+  
+  # Filtramos los datos de la región deseada. 
+  recetas<-data%>%
+    filter(region==Region)%>%
+    select(-region)%>%
+    apply(1,as.list)
+  
+  # Eliminar NA's
+  recetas<-recetas %>%
+    lapply(function(x){x[!(is.na(x))]})%>%
+    lapply(unlist)
+}
+
+# Obtenemos los datos para latino-américa
+recetasLA<-creaTransacciones()
+
+```
+
+# Análisis de Canastas frecuentes 
+
+Pedimos canastas frecuentes que aparezcan en al menos 10% de las recetas. Esto es, que aparezcan en al menos 291 recetas de las 2,917 disponibles. 
+```{r}
+# Fijamos parámetros
+pars<-list(supp=0.1, target='frequent itemsets')
+
+# Algoritmo apriori para conjuntos frecuentes 
+ap<-apriori(recetasLA,parameter = pars)
+ap
+```
+
+Se obtiene un total de 213 canastas frecuentes. Exploremos cada uno de los tamaños de los itemsets. 
+
+## Itemsets tamaño 1
+```{r}
+# Canastas frecuentes de tamaño 1
+ap_1<-subset(ap,size(ap)==1)
+
+length(ap_1)
+```
+
+```{r}
+# Revisamos las canastas 
+inspect(sort(ap_1, by='support')[1:10])
+```
+
+- Hay 26 canastas frecuentes de un sólo ingrediente. El top 10 de los ingredientes más frecuentes (individualmente) de la gastronomía latinoamericana son *cayenne*, *cebolla*, *ajo*, *tomate*, *maiz*, *comino*,*aceite vegetal*, *cilantro*, *trigo* y *pimienta*. 
+
+- Básicamente todos son sazonadores o especias salvo el maíz y el trigo que es la base de la tortilla, la masa y el pan. Nada sorprendente. 
+
+- El resto de los elementos en la lista son mas sazonadores y productos basicos.
+
+## Itemsets tamaño 2
+
+```{r}
+# Canastas frecuentes de tamaño 1
+ap_2<-subset(ap,size(ap)==2)
+
+length(ap_2)
+```
+
+Hay 71 itemsets frecuentes de dos ingredientes.
+
+```{r}
+# Revisamos las canastas 
+inspect(sort(ap_2, by='support')[1:10])
+```
+
+- Los primeros 10 son parejas de sazonadores, especias y hierbas. 
+
+- Algunas parejas que me sorprendieron: (beef,tomato), (beef, onion), (garlic, wheat).
+
+## Itemsets tamaño 3
+```{r}
+# Canastas frecuentes de tamaño 1
+ap_3<-subset(ap,size(ap)==3)
+
+length(ap_3)
+```
+
+Hay 78 canastas frecuentes de 3 ingredientes. 
+
+```{r}
+# Revisamos las canastas 
+inspect(sort(ap_3, by='support')[1:10])
+```
+
+- Siguen siendo combinaciones de sazonadores y especias
+
+- Ninguna tercia pareciera dar indicios de un platillo en específico. 
+
+## Itemsets tamaño 4
+```{r}
+# Canastas frecuentes de tamaño 1
+ap_4<-subset(ap,size(ap)==4)
+
+length(ap_4)
+```
+Hay 34 itemsets frecuentes de 4 ingredientes. 
+
+```{r}
+# Revisamos las canastas 
+inspect(sort(ap_4, by='support')[1:10])
+```
+
+- Todos son combinaciones de sazonadores, especias y hierbas. 
+
+- Ya no aparece ninguna proteina. 
+
+- Son la base para preparar cualquier platillo. 
+
+## Itemsets tamaño 5
+```{r}
+# Canastas frecuentes de tamaño 1
+ap_5<-subset(ap,size(ap)==5)
+
+length(ap_5)
+```
+ 
+ Sólo hay 4 itemsets frecuentes de 5 ingredientes. 
+ 
+```{r}
+# Revisamos las canastas 
+inspect(sort(ap_5, by='support'))
+
+```
+- Siguen siendo combinaciones de sazonadores especias y hiervas. 
+
+## Itemsets específicos 
+
+Vamos a buscar algunas proteinas
+```{r}
+ap_beef<-subset(ap,items %pin% 'beef')
+length(ap_beef)
+inspect(sort(ap_beef,by='support'))
+```
+
+- Sólo hay 9 itemsets frecuentes que contienen carne. 
+
+- Con esto podemos ver que aprox en el 10% de las recetas se utiliza la carne. 
+
+- La carne se cocina en la mayoría de los casos con cebolla, jitomate, cayena y/o ajo.
+
+
+```{r}
+ap_chicken<-subset(ap,items %pin% 'chicken')
+length(ap_chicken)
+inspect(sort(ap_chicken,by='support'))
+```
+
+- Sólo hay 4 itemsets frecuentes que contienen pollo. 
+
+- Aproximadamente el 11% de las recetas utilizan pollo. 
+
+- El pollo se cocina junto con cebolla, ajo y cayena. 
+
+
+```{r}
+ap_corn<-subset(ap,items %pin% 'corn')
+length(ap_corn)
+inspect(sort(ap_corn,by='support'))
+```
+
+- Hay 16 itemsets frecuentes que contiene maíz. 
+
+- Aproximadamente el 29% de las recetas llevan maíz. 
+
+- Se cocina en su mayoría con especias o hierbas, pero no con proteína. ¿tortillas? ¿pan?
+
+## Modelo de Ingredientes Independientes
+
+Veamos si los ingredientes de la cocina latinoamericana se pueden considerar como independientes. Para ello se hacen simulaciones utilzando los datos observados. 
+
+```{r}
+# Función para simular recetas 
+simular_recetas <- function(nItems, nRecetas, iprob){
+  
+  # Etiquetas para los n artículos
+  etiquetas <- 1:nItems
+  if(!is.null(names(iprob))) {
+    
+    # cambia etiquetas a nombre del articulo
+    etiquetas <- names(iprob)
+  }
+  # Genera nRecetas recetas simulando binomiales de tamaño 1 para el
+  # no. de ingredientes observado con las prob observadas en los datos. 
+  recetas <- lapply(1:nRecetas, function(i){
+      etiquetas[which(rbinom(nItems, 1, prob = iprob) == 1)]
+  })
+  # Devolver la canasta
+  recetas
+}
+```
+
+Simulamos 10,000 recetas de los 260 ingredientes disponibles en la cultura latinoamericana con las frecuencias observadas en los datos. 
+```{r}
+# Fijamos la semilla
+set.seed(25021987)
+
+# Convertimos la canasta a tipo transactions 
+recetasLA_trans<-as(recetasLA,"transactions")
+
+# Obtenemos los soportes (itemFrequency) para los artículos y los ordenamos  
+probs_ingredients <- sort(itemFrequency(recetasLA_trans))
+
+# Simulamos 10000 recetas Se tienen 260 ingredientes en los datos 
+# con probabilidades dadas por el soporte de cada uno. 
+recetas_sims <- simular_recetas(nItems = 260, nRecetas = 10000, 
+                               iprob = probs_ingredients)
+
+# Calculamos las canastas frecuentes para soporte 0.005
+# con algoritmo apriori. 
+ap_indep <- apriori(recetas_sims, 
+                    parameter = list(support=0.1, target='frequent itemsets'),
+                       control = list(verbose = FALSE))
+ap_indep
+```
+
+- Se tienen 107 itemsets frecuentes en el modelo de ingredientes idependientes. 
+
+### Itemsets tamaño 1
+
+```{r}
+# Itemsets de tamaño 1
+# Canastas frecuentes de tamaño 1
+ap_indep_1<-subset(ap_indep,support>0.1 & size(ap_indep)==1)
+
+length(ap_indep_1) # aquí 213, antes 
+
+# Revisamos las canastas 
+inspect(sort(ap_indep_1, by='support')[1:10])
+
+```
+
+- Se tienen 27 itemsets frecuentes de 1 ingrediente 
+
+- Prácticamente igual que en los datos observados. En el top 10, sólo sazonadores, especias y hierbas más el trigo y el maíz. 
+
+### Itemsets tamaño 2
+```{r}
+# Itemsets de tamaño 2
+# Canastas frecuentes de tamaño 2
+ap_indep_2<-subset(ap_indep,support>0.1 & size(ap_indep)==2)
+
+length(ap_indep_2) # aquí 213, antes 
+
+# Revisamos las canastas 
+inspect(sort(ap_indep_2, by='support')[1:10])
+
+```
+
+- Se tienen 62 itemsets frecuentes de 2 ingreidentes. 
+
+- Combinación de sazonadores y hierbas en los 10 primeros. 
+
+- Similar a los datos observados.
+
+### Itemsets tamaño 3
+
+```{r}
+# Itemsets de tamaño 3
+ap_indep_3<-subset(ap_indep,support>0.1 & size(ap_indep)==3)
+
+length(ap_indep_3) 
+
+# Revisamos las canastas 
+inspect(sort(ap_indep_3, by='support'))
+
+```
+
+- Se tienen sólo 17 itemsets frecuentes de tamaño 3. Mucho menos que en los datos observados. 
+
+- Combinaciones de sazonadores, hierbas y especias. 
+
+- No aparece ninguna proteína a diferencia de los datos observados. 
+
+### Itemsets tamaño 4
+
+```{r}
+# Itemsets de tamaño 4
+ap_indep_4<-subset(ap_indep,support>0.1 & size(ap_indep)==4)
+
+length(ap_indep_4) 
+
+# Revisamos las canastas 
+inspect(sort(ap_indep_4, by='support'))
+
+```
+
+- Sólo hay un itemset frecuente de 4 ingrdientes. Mucho menor a lo observado en los datos. 
+
+- Combinación de los 4 itemsets más frecuentes de tamaño 1. 
+
+## Comparativo Modelo Independiente vs Datos observados. 
+
+Hacemos 10 veces la simulación para garantizar que no fue "mala suerte" y verificar si los datos de recetas pueden considerase como ingredientes independientes para la comida en Latinoamérica. 
+
+```{r}
+sims <- lapply(1:10, function(i){
+  # Simula 10,000 canastas para los 169 artículos con las 
+  # probabilidades observadas en la muestra. 
+  recetas <- simular_recetas(nItems = 260, 
+                               nRecetas = 10000, 
+                               iprob = probs_ingredients)
+  
+  # Obtiene canastas frecuentes con algoritmo apriori y soporte>0.005.
+  ap_indep <- apriori(recetas,
+                      parameter = list(support=0.1, target='frequent itemsets'),
+                       control = list(verbose = FALSE))
+  
+  # size devuelve un vector con el tamaño (no de artículos) de cada
+  # itemset frecuente 
+  # con table se saca una tabla de frecuencias. 
+  df <- data.frame(table(size(ap_indep)))
+  
+  # No de modelo simulado
+  df$rep <- i
+  df
+})
+```
+
+Obtenemos la tabla de frecuencias para los datos simulados. 
+
+```{r}
+# Convierte cada elemento la lista en un solo data frame
+df_sims <- bind_rows(sims)
+```
+
+Obtenemos la tabla de frecuencias para los datos observados. 
+
+```{r}
+# Data frame para itemsets frecuentes observados 
+df_obs <- data.frame(table(size(ap)))
+```
+
+Graficamos el no. de itemsets frecuentes encontrados en los datos simulados y en los observados.
+```{r}
+# Grafica frecuencias en las simulaciones vs los datos observados
+# por tamaño de itemset frecuente. 
+ggplot(df_sims, aes(x=Var1, y=Freq)) + 
+  geom_point() +
+  geom_point(data = df_obs, colour = 'red') +
+  labs(x = 'Tamaño',y='Frecuencia')
+```
+
+- Ajuste bueno para los itemsets de tamaño 1 y 2.
+
+- Ajsute pésimo para itemsets de tamaño 3 y 4. 
+
+- No hay itemsets de tamaño 5 en los datos simulados. 
+
+Por lo tanto, los ingredientes no parecen tener un comportamiento de independencia. Veamos si hay evidencia de asociaciones positivas. 
+
+```{r}
+# Buscamos los casos en que coinciden. 
+coinciden <- match(ap, ap_indep)
+
+# No de coincidencias -> 101
+sum(!is.na(coinciden)) 
+
+# no de itemsets frecuentes observados -> 213
+length(ap)
+
+# no de itemsets frecuentes independientes -> 107 
+length(ap_indep)
+
+```
+
+La mayoría de los itemsets frecuentes de los datos en el modelo independiente están en los itemsets frecuentes de los datos observados; sin embargo hhay aproximadamente un 50% de itemsets en los datos observados que no hacen match en los datos simulados del modelo independiente. Por lo tanto hay asociación positiva entre algunos de los ingredientes. 
+ 
+# Reglas de Asociación
+ 
+## Usando sólo confianza.
+
+###  Soporte 10% y confianza mayor o igual a 5%. 
+
+```{r}
+# Se definen parámetros 
+pars <- list(supp = 0.1, confidence = 0.05, target='rules', 
+             ext = TRUE, minlen = 2)
+# Se corre el algoritmo apriori con soporte 0.01 y confianza 0.20
+reglas <- apriori(recetasLA, parameter = pars)
+
+# no. reglas
+length(reglas)
+```
+
+ Se encontraron 532 reglas  para un soporte del 10% y con confianza del 5% . 
+ 
+```{r}
+# Examinamos las primeras 10 reglas 
+inspect(sort(reglas, by='confidence')[1:100])
+```
+
+Por ejemplo, el 10.21% tienen black pepper, oregano y garlic; el 10.42% de las recetas tiene black pepper y oregano; 98% de las recetas que tienen balck pepper y oregano también tienen garlic. 
+
+
+###  Soporte 1% y confianza mayor o igual a 5%. 
+
+```{r}
+# Se definen parámetros 
+pars <- list(supp = 0.01, confidence = 0.05, target='rules', 
+             ext = TRUE, minlen = 2)
+# Se corre el algoritmo apriori con soporte 0.01 y confianza 0.20
+reglas <- apriori(recetasLA, parameter = pars)
+
+# no. reglas
+length(reglas)
+```
+
+ Se encontraron 50,339 reglas para un soporte del 1% y con confianza del 5% . 
+ 
+```{r}
+# Examinamos las primeras 10 reglas 
+inspect(sort(reglas, by='confidence')[1:100])
+```
+
+- Se obtienen reglas con confianza del 100% por ejemplo celery oil -> vinegar o bien buttermilk, garlic -> egg. 
+
+- Esto signficaría que el 100% de las canastas que contienen mantequilla y ajo también contienen huevo. 
+
+###  Soporte 20% y confianza mayor o igual a 5%. 
+
+```{r}
+# Se definen parámetros 
+pars <- list(supp = 0.2, confidence = 0.5, target='rules', 
+             ext = TRUE, minlen = 2)
+# Se corre el algoritmo apriori con soporte 0.01 y confianza 0.20
+reglas <- apriori(recetasLA, parameter = pars)
+
+# no. reglas
+length(reglas)
+```
+
+ Se encontraron 49 reglas para un soporte del 20% y con confianza del 5% . 
+ 
+```{r}
+# Examinamos las primeras 10 reglas 
+inspect(sort(reglas, by='confidence'))
+```
+
+- Por ejemplo, el 33.4% tienen cayena, ajo, tomate y cebolla; el 36% tienen cayena, ajo y tomate; el 92% de las recetas que tieenen cayena, ajo y tomate también tienen cebolla.
+
+
+### Observaciones 
+
+- Aumentar soporte (confianza fijo) disminuye no. de itemsets frecuentes. Disminuir soporte (confianza fijo) aumenta el no. de itemsets frecuentes. 
+
+## Usando lift (sorporte y confianza bajos)
+
+```{r}
+# Se definen parámetros 
+pars <- list(supp = 0.01, confidence = 0.1, target='rules', 
+             ext = TRUE, minlen = 2)
+# Se corre el algoritmo apriori con soporte 0.01 y confianza 0.20
+reglas <- apriori(recetasLA, parameter = pars)
+
+# no. reglas
+length(reglas)
+```
+
+```{r}
+# Examinamos las primeras 10 reglas 
+inspect(sort(reglas, by='lift')[1:100])
+
+```
+
+- Hay reglas redundantes como la 1 y 2 de blackpepper, garlic y oregano. 
+
+- Se tienen lifts mayores a 36. 
+
+- Alta asociación entre maíz, ajo, tomate vinage y aceite de apio. 
+
+- Alta asociación entre carne molida cebolla y vinage. 
+
+
+## Usando hyperlift (soporte y confianza bajos)
+
+```{r}
+# Función para agregar medida hyperlift
+agregar_hyperlift <- function(reglas, recetas){
+  quality(reglas) <- cbind(quality(reglas), 
+    hyper_lift = interestMeasure(reglas, measure = "hyperLift", 
+    transactions = recetas))
+  reglas
+}
+
+# Agregamos hyperlift a las reglas que ya se extrajeron. 
+reglas_hyperlift <- agregar_hyperlift(reglas, recetasLA)
+
+# Observar las primeras 100 reglas. 
+inspect(sort(reglas_hyperlift, by='hyper_lift')[1:100])
+
+```
+
+- Se tienen hyperlifts mayores a 11. Valores más chicos que los de lift. 
+
+- Hay asociación positiva entre carne molida, vinagre y tamarindo
+
+- Hay asociación positiva entre maíz cebolla, tomate y vinagre. 
+
+
+# Grafica de nodos 
+
+
+```{r}
+# Se fijan parámetros con bajo soporte y confianza. 
+pars <- list(support = 0.001,
+             confidence = 0.1,
+             minlen = 2,
+             target='rules', ext = TRUE)
+
+# Se obtienen lsa reglas con el algoritmo apriori
+b_reglas <- apriori(recetasLA, parameter = pars)
+
+# Se agrega el hyperlift
+b_reglas <- agregar_hyperlift(b_reglas, recetasLA)
+```
+
+```{r}
+# Se filtran reglas con hyperlift mayor a 2.5  y de menos de 4 ingredientes. 
+b_reglas_lift <- subset(b_reglas, 
+                        hyper_lift > 2.5 & size(b_reglas) < 4 &
+                        lhs.support > 0.01)
+
+# Se ordenan por hyperlift 
+b_reglas_lift <- sort(b_reglas_lift, by = 'hyper_lift')
+DT::datatable(DATAFRAME(b_reglas_lift)  %>%
+                mutate_if(is.numeric, funs(round(., 3))))
+```
+
+## Opción 1
+
+```{r}
+
+# b_reglas_lift <- subset(b_reglas, 
+#                         hyper_lift > 1.75 & confidence > 0.1)
+
+# Extraemos las reglas de tamaño 2. 
+reglas_f <- subset(b_reglas_lift, size(b_reglas_lift)==2)
+
+# Se extrae un data frame y se cambian los nombres de LHS y RHS
+df_reglas <- reglas_f %>% DATAFRAME %>% rename(from=LHS, to=RHS) %>% as_data_frame
+
+# Se asigna un peso a cada canasta como el logaritmo del hyperlift 
+df_reglas$weight <- log(df_reglas$hyper_lift)
+
+# Se hace un table_graph, donde pone la medida de centralidad de los objetos y las relaciones. 
+graph_1 <- as_tbl_graph(df_reglas) %>%
+  mutate(centrality = centrality_degree(mode = "all")) 
+
+# Se obtiene la grafica de nodos. 
+ggraph(graph_1, layout = 'fr', start.temp=100) +
+  geom_edge_link(aes(alpha=lift), 
+                 colour = 'red',
+                 arrow = arrow(length = unit(4, 'mm'))) + 
+  geom_node_point(aes(size = centrality, colour = centrality)) + 
+  geom_node_text(aes(label = name), size=2,
+                 colour = 'gray20', repel=TRUE) +
+  theme_graph()
+```
+
+- Tenemos un grupo de pan y bebidas de desayuno: cafe, huevo, pasas, mantellia, leche. 
+
+- Otro grupo de carnes, vino, cilantro, romero, 
+
+- uN grupo de quesos, 
+
+- Un grupo de calabazas. 
+
+- Un grupo de jugos y bebidas.
+
+- Un grupo de vegetales 
+
+## Opción 2
+
+```{r}
+
+b_reglas_lift <- subset(b_reglas,
+                        hyper_lift > 2 & confidence > 0.1)
+
+# Extraemos las reglas de tamaño 2. 
+reglas_f <- subset(b_reglas_lift, size(b_reglas_lift)==2)
+
+# Se extrae un data frame y se cambian los nombres de LHS y RHS
+df_reglas <- reglas_f %>% DATAFRAME %>% rename(from=LHS, to=RHS) %>% as_data_frame
+
+# Se asigna un peso a cada canasta como el logaritmo del hyperlift 
+df_reglas$weight <- log(df_reglas$hyper_lift)
+
+# Se hace un table_graph, donde pone la medida de centralidad de los objetos y las relaciones. 
+graph_1 <- as_tbl_graph(df_reglas) %>%
+  mutate(centrality = centrality_degree(mode = "all")) 
+
+# Se obtiene la grafica de nodos. 
+ggraph(graph_1, layout = 'fr', start.temp=100) +
+  geom_edge_link(aes(alpha=lift), 
+                 colour = 'red',
+                 arrow = arrow(length = unit(4, 'mm'))) + 
+  geom_node_point(aes(size = centrality, colour = centrality)) + 
+  geom_node_text(aes(label = name), size=2,
+                 colour = 'gray20', repel=TRUE) +
+  theme_graph()
+```
+
+- Se tiene un grupo de carnes
+- Se tiene un grupo de frutas
+- Se tiene un grupo de arroz, zanahoria, papa, pescado
+- Se tiene un grupo de pollo 
+- Se tiene un grupo de quesos 
+- Se tiene un grupo de calabazas
+- Se tiene un grupo de jugos. 
+- Se tiene un grupo de alimentos para desayuno. 
+
