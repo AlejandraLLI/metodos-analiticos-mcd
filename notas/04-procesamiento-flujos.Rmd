@@ -1133,7 +1133,7 @@ ggplot(df_prob, aes(x = 2^m, y = probas, colour = factor(n))) + geom_line() +
 # c(2^5, 2^10, 2^20)
 ```
 
-
+Usamos $2^m$ para estimar $n$ pues los máximos se dan cuando se satisface $2^m\approxn$. 
 ---
 
 Y ahora podemos probar cómo se ve la aproximación con dos funciones

@@ -340,10 +340,28 @@ lapply(incorrectas,corrector)
 
 Sea $k$ el tamaño de la muestra (fijo), sea $n_0$ el flujo histórico y sea $n$ el flujo completo al llegar una nueva observación (es decir $n=n_0+1$). Tomemos la observación $i$ del flujo: 
 
-* Si $i>n_0$ entonces se selecciona para ser parte de la muestra con probabilidad $k/n$. 
+* Si $i>n_0$ es la nueva observación y entonces se selecciona para ser parte de la muestra con probabilidad $k/n$. 
 
-* Si $i\leq n0$ la probabilidad de que ya esté en la muestra es $k/n_0$ y es necesario que no sea seleccionado para ser eliminado $1-\tfrac{1}{k}=\tfrac{k-1}{k}$ i.e. la probabilidad de mantenerse en la muestra es $\tfrac{k}{n_0}\tfrac{k-1}{k}$
+* Si $i\leq n_0$ tengo dos opciones: 
 
+    * Que se agregue la nueva observción (con probabilidad $k/n$. En este caso, para que la observación $i$ esté en la muestra tuvo que haber sido seleccionada en el paso anterior (probabilidad $k/n_0$) y que no sea seleccionado para se reemplazado por la nueva observación (probabilidad $k-1/k$). 
+    
+    * Que no se agregue la nueva observacvión (con probabilidad $1-k/n$) y que la observación $i$ esté en la muestra desde el paso anterior (probabilidad $k/n_0$)
+    
+    
+De esta manera, para la observación $i$: 
+
+\begin{eqnarray*}
+p(i en muestra)&=&\left(1-\dfrac{k}{n}\right)\left(\dfrac{k}{n_0}\right)+\left(\dfrac{k}{n}\right)\left(\dfrac{k-1}{k}\right)\left(\dfrac{k}{n_0}\right)\\
+&=& \dfrac{(n-k)k}{nn_0}+\dfrac{(k-1)k}{nn_0}\\
+&=& \dfrac{(n-k)k+(k-1)k}{nn_0}\\
+&=& \dfrac{k(n-k+k-1)}{nn_0}\\
+&=& \dfrac{k(n-1)}{nn_0}\\
+&=& \dfrac{kn_0}{nn_0}\\
+&=& \dfrac{k}{n}
+\end{eqnarray*}
+
+Por lo tanto, $\forall i=1,2, \cdots, n$. Por lo tanto, la probabilidad es uniforme $k/n$.   
 
 # Combinación de estimadores hyperloglog
 
