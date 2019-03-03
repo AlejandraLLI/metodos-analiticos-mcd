@@ -1,0 +1,194 @@
+---
+title: 'Tarea 5: Sistemas de Recomendación (parte 1)'
+author: "Alejandra Lelo de Larrea Ibarra"
+date: "02/03/2019"
+output: 
+  html_document:
+    toc: TRUE
+    toc_depth: 3
+---
+
+# Librerías
+```{r}
+library(tidyverse)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+theme_set(theme_minimal())
+cb_palette<-c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+# Lectura de datos 
+```{r}
+# Leer los datos de películas
+pelis_nombres <- read_csv('../datos/netflix/movies_title_fix.csv', col_names = FALSE, na = c("", "NA", "NULL"))
+
+# Asigna nombres de variables 
+names(pelis_nombres) <- c('peli_id','año','nombre')
+
+# Vemos los datos 
+head(pelis_nombres)
+
+# Leer calificaciones de usuarios
+dat_netflix <- read_csv( "../datos/netflix/dat_muestra_nflix.csv", progress = FALSE) %>% 
+    select(-usuario_id_orig) %>% 
+    mutate(usuario_id = as.integer(as.factor(usuario_id)))
+
+# Vemos los datos
+head(dat_netflix)
+```
+
+# Funciones auxliares 
+```{r}
+# Función para calcular la raíz del error cuadrático medio. 
+recm <- function(calif, pred){
+  sqrt(mean((calif - pred)^2))
+}
+
+# Función de similitud coseno
+sim_cos <- function(x,y){
+  sum(x*y, na.rm = T)/(sqrt(sum(x^2, na.rm = T))*sqrt(sum(y^2, na.rm = T)))
+}
+
+```
+
+
+# Validación y Entrenamiento
+
+```{r}
+# Fija la semilla 
+set.seed(28882)
+
+# Extrae los distnitos usuarios existentes 
+usuarios <- dat_netflix %>% select(usuario_id) %>% distinct
+
+# Muestreo del 20% de usuarios para validación 
+valida_usuarios <- usuarios %>% sample_frac(0.2) 
+
+# Extrae las distintas películas 
+peliculas <-  dat_netflix %>% select(peli_id) %>% distinct
+
+# Muestreo del 20% de peliuclas para validación 
+valida_pelis <- peliculas %>% sample_frac(0.2)
+
+```
+
+```{r}
+# Extrae conjunto de validación. 
+# Nota: el semi-join es una union de tipo filtro. Elige los datos que están en A para los que hay un match en B. 
+dat_valida <- dat_netflix %>% semi_join(valida_usuarios) %>% semi_join(valida_pelis) 
+
+# Extrea el conjunto de entrenamiento 
+# Nota: el anti-join es una unión de tipo filtro. Devuelve los renglones de A que no están en B. 
+dat_entrena <- dat_netflix %>% anti_join(dat_valida)
+
+# No observaciones en valiación y en entrenaiento 
+n_valida <- dat_valida %>% tally %>% pull(n)
+n_entrena <- dat_entrena %>% tally %>% pull(n)
+
+# Imprime resumen de la separación de muestras. 
+sprintf("Entrenamiento: %1d, Validación: %2d, Total: %3d", n_entrena, n_valida, n_entrena + n_valida)
+```
+
+# Medias de películas 
+
+```{r}
+# Promedio de calificación por película 
+medias_peliculas <- dat_netflix %>% group_by(peli_id) %>% summarise(media_peli = mean(calif), num_calif_peli = length(calif))
+
+# Promedio general de calificaciones 
+media_gral <- mean(dat_netflix$calif)
+
+# Agrega la media de las peliculos a la base de datos de peliculas 
+medias_p_2 <- left_join(medias_peliculas, pelis_nombres)
+```
+
+# Centrar calificaciones 
+
+```{r}
+# Centrar las calificaciones por media del usuario
+dat_entrena_c <- dat_entrena %>% # datos de entrenamiento 
+  group_by(usuario_id) %>% # agrupa por usuario
+  mutate(calif_c = calif - mean(calif)) # centra la calificación
+
+# calculamos un id secuencial.
+dat_entrena_c$id_seq <- as.numeric(factor(dat_entrena_c$usuario_id))
+
+```
+
+```{r}
+# Obtiene los datos de entrenamiento con calificaciones centradas
+dat_entrena_2 <- dat_entrena_c %>% # datos entrenamiento agrupados
+  ungroup() %>%  # desagrupa 
+  select(peli_id, id_seq, calif_c) # selecciona variables 
+
+# Funcíon para extaer ejemplos 
+ejemplos <- function(pelicula){
+  
+  # Filtra por el id de la película. 
+  mi_peli <- filter(dat_entrena_2, peli_id==pelicula) %>% # filtra calif. de la película 
+             rename(peli_id_1 = peli_id, calif_c_1 = calif_c) # renombra columnas 
+  
+  # vamos a calcular todas las similitudes con mi_peli - esto no es buena
+  # idea y discutiremos más adelante cómo evitarlo
+  # pega las calif de la pelicula de interes con el resto. 
+  datos_comp <- left_join(dat_entrena_2, mi_peli) 
+  
+  # calcular similitudes
+  out_sum <- datos_comp %>% # datos completos 
+      group_by(peli_id) %>% #agrupa por película 
+      summarise(dist = sim_cos(calif_c, calif_c_1)) %>% #extrae similitud coseno
+      left_join(medias_p_2) # agrega las medias ponderadas 
+  
+  # Ordena por distancia coseno y selecciona variables 
+  out_sum %>% arrange(desc(dist))  %>% select(nombre, dist, num_calif_peli)
+}
+```
+
+# Ejemplo 1: Harry Potter 
+
+Veamos las similitudes de Harry Potter y el Prisionero de Azkaban (id 12338)
+```{r}
+ejemplos(12338) %>% filter(num_calif_peli > 200) %>% head(20) %>% knitr::kable()
+```
+
+Cmo era de esperarse, se obtienen el resto de las películas disponibles de Harry Potter hasta el año 2005: i) HP y la Piedra Filosofal, ii) HP y la Cámara de los Seretos. Sin embargo, las similitudes no son tan altas, de hecho son menores a 0.5.
+
+Otras películas que hubieramos esperado ver en la lista son: i) El señor de los anillos y sus versiones extendidas y ii) lost.
+
+La otra película que conozco y me soprenden en la lista es la edición especial de la Cencienta
+
+
+# Ejemplo 2: Gladiador
+
+Veamos las similitudes de Gladiador (id 13728)
+```{r}
+ejemplos(13728) %>% filter(num_calif_peli > 200) %>% head(20) %>% knitr::kable()
+```
+
+Para Gladiador (Russell Crow), la película más parecida es la correspondiente versión extendida. Otras películas que aparecen con alta similitud son Corazón Valiente (Mel Gibson), Las versiones extendidas de el Señor de los Anillos, Salvando al Soldado Ryan, Star Wars 5. 
+
+
+Títulos que sorprenden en la lsita son: Smallvile, G.I. Joe, Battlestar Galáctica
+
+
+# Ejemplo 3: The Notebook
+
+Veamos las similitudes de The Notebook (id 14103)
+```{r}
+ejemplos(14103) %>% filter(num_calif_peli > 200) %>% head(20) %>% knitr::kable()
+```
+
+Para Diario de una Pasión, aparecen títulos con similitud muy baja de aproximadamente 0.34. Varios de estos títulos son películas/series "de niñas" o bien, comedias románticas como Desperate Housewives, Gilmore girls, Little House on the Prairie, etc. 
+
+¿Qué pasa con pelis coo Lord of Rings? Pareciera que son similares solo porque son mjuy vistas y calificadas. 
+
+# Ejemplo 4: Pokemon
+
+Veamos las similitudes de Pokemon (id 14754)
+```{r}
+ejemplos(14754) %>% filter(num_calif_peli > 200) %>% head(20) %>% knitr::kable()
+```
+
+Además de varios titulos relacionados con pokemon, aparecen varias caricaturas como Dragon Ball Z, las chicas superpoderosas, scooby-doo, etc. Las similitudes van desde 0.22 hasta 0.59. 
