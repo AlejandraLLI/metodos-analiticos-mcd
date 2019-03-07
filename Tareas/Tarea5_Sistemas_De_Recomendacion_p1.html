@@ -202,19 +202,20 @@ $(document).ready(function () {
 <li><a href="#ejemplo-1-harry-potter">Ejemplo 1: Harry Potter</a></li>
 <li><a href="#ejemplo-2-gladiador">Ejemplo 2: Gladiador</a></li>
 <li><a href="#ejemplo-3-the-notebook">Ejemplo 3: The Notebook</a></li>
-<li><a href="#ejemplo-4-pokemon">Ejemplo 4: Pokemon</a></li>
+<li><a href="#ejemplo-4-la-sirenita">Ejemplo 4: La Sirenita</a></li>
+<li><a href="#ejemplo-5-pokemon">Ejemplo 5: Pokemon</a></li>
 </ul>
 </div>
 
 <div id="librerias" class="section level1">
 <h1>Librerías</h1>
 <pre class="r"><code>library(tidyverse)</code></pre>
-<pre><code>## ── Attaching packages ───────────────────── tidyverse 1.2.1 ──</code></pre>
+<pre><code>## ── Attaching packages ───────────────────────────────────────────────────────────────────────────── tidyverse 1.2.1 ──</code></pre>
 <pre><code>## ✔ ggplot2 3.1.0     ✔ purrr   0.2.5
 ## ✔ tibble  1.4.2     ✔ dplyr   0.7.8
 ## ✔ tidyr   0.8.2     ✔ stringr 1.3.1
 ## ✔ readr   1.3.0     ✔ forcats 0.3.0</code></pre>
-<pre><code>## ── Conflicts ──────────────────────── tidyverse_conflicts() ──
+<pre><code>## ── Conflicts ──────────────────────────────────────────────────────────────────────────────── tidyverse_conflicts() ──
 ## ✖ dplyr::filter() masks stats::filter()
 ## ✖ dplyr::lag()    masks stats::lag()</code></pre>
 </div>
@@ -720,8 +721,126 @@ ejemplos &lt;- function(pelicula){
 <p>Para Diario de una Pasión, aparecen títulos con similitud muy baja de aproximadamente 0.34. Varios de estos títulos son películas/series “de niñas” o bien, comedias románticas como Desperate Housewives, Gilmore girls, Little House on the Prairie, etc.</p>
 <p>¿Qué pasa con pelis coo Lord of Rings? Pareciera que son similares solo porque son mjuy vistas y calificadas.</p>
 </div>
-<div id="ejemplo-4-pokemon" class="section level1">
-<h1>Ejemplo 4: Pokemon</h1>
+<div id="ejemplo-4-la-sirenita" class="section level1">
+<h1>Ejemplo 4: La Sirenita</h1>
+<pre class="r"><code>ejemplos(17714)%&gt;% filter(num_calif_peli &gt; 200) %&gt;% head(20) %&gt;% knitr::kable()</code></pre>
+<pre><code>## Joining, by = &quot;id_seq&quot;</code></pre>
+<pre><code>## Joining, by = &quot;peli_id&quot;</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">nombre</th>
+<th align="right">dist</th>
+<th align="right">num_calif_peli</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">The Little Mermaid</td>
+<td align="right">1.0000000</td>
+<td align="right">1420</td>
+</tr>
+<tr class="even">
+<td align="left">Pinocchio</td>
+<td align="right">0.2974538</td>
+<td align="right">286</td>
+</tr>
+<tr class="odd">
+<td align="left">Lady and the Tramp</td>
+<td align="right">0.2619429</td>
+<td align="right">579</td>
+</tr>
+<tr class="even">
+<td align="left">Beauty and the Beast</td>
+<td align="right">0.2284203</td>
+<td align="right">214</td>
+</tr>
+<tr class="odd">
+<td align="left">Law &amp; Order: Special Victims Unit: The Second Year</td>
+<td align="right">0.2051221</td>
+<td align="right">373</td>
+</tr>
+<tr class="even">
+<td align="left">Gloria</td>
+<td align="right">0.1815702</td>
+<td align="right">208</td>
+</tr>
+<tr class="odd">
+<td align="left">Beyond the Clouds</td>
+<td align="right">0.1786257</td>
+<td align="right">225</td>
+</tr>
+<tr class="even">
+<td align="left">Justice League Unlimited: Saving the World</td>
+<td align="right">0.1781568</td>
+<td align="right">337</td>
+</tr>
+<tr class="odd">
+<td align="left">The Other Side of the Bed</td>
+<td align="right">0.1775201</td>
+<td align="right">303</td>
+</tr>
+<tr class="even">
+<td align="left">The Adventures of Jimmy Neutron: Jet Fusion</td>
+<td align="right">0.1688283</td>
+<td align="right">258</td>
+</tr>
+<tr class="odd">
+<td align="left">Veronica Mars: Season 1</td>
+<td align="right">0.1686039</td>
+<td align="right">245</td>
+</tr>
+<tr class="even">
+<td align="left">Batman Beyond: School Dayz / Spellbound</td>
+<td align="right">0.1674315</td>
+<td align="right">218</td>
+</tr>
+<tr class="odd">
+<td align="left">Battlestar Galactica: Season 1</td>
+<td align="right">0.1662409</td>
+<td align="right">364</td>
+</tr>
+<tr class="even">
+<td align="left">The Journey of Natty Gann</td>
+<td align="right">0.1659967</td>
+<td align="right">208</td>
+</tr>
+<tr class="odd">
+<td align="left">Teen Titans: Season 1</td>
+<td align="right">0.1657291</td>
+<td align="right">219</td>
+</tr>
+<tr class="even">
+<td align="left">Lord of the Rings: The Return of the King: Bonus Material</td>
+<td align="right">0.1656755</td>
+<td align="right">207</td>
+</tr>
+<tr class="odd">
+<td align="left">Storm Riders</td>
+<td align="right">0.1652496</td>
+<td align="right">235</td>
+</tr>
+<tr class="even">
+<td align="left">Highlander: Finale</td>
+<td align="right">0.1647393</td>
+<td align="right">336</td>
+</tr>
+<tr class="odd">
+<td align="left">Tarzan</td>
+<td align="right">0.1537804</td>
+<td align="right">2112</td>
+</tr>
+<tr class="even">
+<td align="left">The Eruption of Mount St. Helens: IMAX</td>
+<td align="right">0.1536209</td>
+<td align="right">271</td>
+</tr>
+</tbody>
+</table>
+<p>Aparecen varias películas de Disney (Pinocho, la Dama y el Vagabundo, La bella y la Bestia, tarzan) aunque con baja similitud. Algunos títulos que sorprenden son “La Ley y el Orden”, “The Other Side of the Bed”, “Veronica Mars”.</p>
+</div>
+<div id="ejemplo-5-pokemon" class="section level1">
+<h1>Ejemplo 5: Pokemon</h1>
 <p>Veamos las similitudes de Pokemon (id 14754)</p>
 <pre class="r"><code>ejemplos(14754) %&gt;% filter(num_calif_peli &gt; 200) %&gt;% head(20) %&gt;% knitr::kable()</code></pre>
 <pre><code>## Joining, by = &quot;id_seq&quot;</code></pre>

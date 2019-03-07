@@ -184,7 +184,17 @@ Para Diario de una Pasión, aparecen títulos con similitud muy baja de aproxima
 
 ¿Qué pasa con pelis coo Lord of Rings? Pareciera que son similares solo porque son mjuy vistas y calificadas. 
 
-# Ejemplo 4: Pokemon
+
+# Ejemplo 4: La Sirenita
+
+```{r}
+ejemplos(17714)%>% filter(num_calif_peli > 200) %>% head(20) %>% knitr::kable()
+```
+
+Aparecen varias películas de Disney (Pinocho, la Dama y el Vagabundo, La bella y la Bestia, tarzan) aunque con baja similitud. Algunos títulos que sorprenden son "La Ley y el Orden", "The Other Side of the Bed", "Veronica Mars". 
+
+
+# Ejemplo 5: Pokemon
 
 Veamos las similitudes de Pokemon (id 14754)
 ```{r}
