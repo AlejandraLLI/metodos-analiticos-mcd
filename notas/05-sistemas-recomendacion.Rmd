@@ -963,7 +963,7 @@ ejemplos(6807) %>% filter(num_calif_peli > 300) %>% head(20) %>% knitr::kable() 
 El problema otra vez es similitudes ruidosas que provienen de pocas evaluaciones en común. 
 
 ### Ejercicio {-}
-Intenta con otras películas que te interesen
+Intenta con otras películas que te interesen (ver tarea 5 parte 1 para más ejemplos).
 
 ```{r}
 # Friends: Season 1
@@ -1018,7 +1018,7 @@ que agrupan o separan películas, y así mismo, que los usuarios se distinguen p
 que tienen por estos "conceptos".
 
 En esta parte, consideramos la idea de utilizar reducción de dimensionalidad para
-hacer recomendaciones. Esta idea propone que hay ciertos factores latentes (no observados)
+hacer recomendaciones. Esta idea propone que hay ciertos factores latentes (características no observadas)
 que describen películas con "contenido implícito similar", y usuarios según su interés en esa dimensión.
 
 Este método nos permitirá también controlar mejor los resultados ruidosos que
@@ -1028,8 +1028,8 @@ de dimensión).
 
 
 ### Ejemplo: una dimensión latente.{#ejemplo}
-Por ejemplo: consideramos una dimensión de películas serias contra películas divertidas.
-3 películas podrían describirse con
+Por ejemplo: consideramos una dimensión de películas serias (valores positivos) contra películas divertidas (valores negativos).
+3 películas (items) podrían describirse con
 
 $$v=(-2,0,1)$$,
 
@@ -1044,14 +1044,28 @@ Qusiéramos predecir el gusto usando estos dos vectores. Nuestras predicciones (
 
 $$\tilde{X} = u v^t$$
 
+Es decir, modelamos la calificación multiplicando el nivel de gusto por la seriedad del usuario y el nivel de seriedad de cada película. 
+
 ```{r}
+# Define gusto de los usuarios por seria(+)-divertida(-)
 u <- c(2,3,-3,0,1)
+# Define las películas por seria(+)-divertida(-)
 v <- c(-2,0,1)
+```
+
+En este caso, al usuario 3 le gustan las películas divertidas (-3) entonces , al multiplicar por el nivel de seriedad de la primer película (-2), dará un valor positivo y, por lo tanto, si le puede gustar la película uno. 
+
+
+```{r}
+# Estima las calificaciones
 gustos <- u%*%t(v)
+
+# Calificaciones estimadas
 gustos
 ```
 
-Así que al usuario 1 le recomndamos la película 3, pero al usuario 3 le recomendamos la película 1.
+Esta matriz es la matriz de scores para cada persona sobre cada una de las películas en la lista. Recomendamos a cada usuario la película con mayor calificación. 
+Así que al usuario 1 le recomendamos la película 3, pero al usuario 3 le recomendamos la película 1.
 
 ---
 
@@ -1066,46 +1080,79 @@ Podemos proponer más dimensiones latentes de la siguiente forma:
 ### Ejemplo: dos dimensiones latentes {#ejemplo}
 Tenemos la dimensión anterior de seria-divertida
 ```{r}
-v_1 <- c(-2,0,1)
-u_1 <- c(2,3,-3,0,1)
+# Define las películas por seria(+)/divertida(-)
+v1 <- c(-2,0,1)
+
+# Define gusto de los usuarios por seria(+)/divertida(-)
+u1 <- c(2,3,-3,0,1)
 ```
-Y supongamos que tenemos otra dimensión con violencia - sin violencia
+En realidad, no puedo describir películas y gustos sólo con una dimensión. Entonces buscamos varias $u$'s y varias $v$'s de tal forma que las combinamos como una suma ponderada para obtener la predicción del score. 
+
+Supongamos que tenemos otra dimensión con violencia - sin violencia
 ```{r}
+# Define las películas por violencia(+)/sin violencia(-)
 v_2 <- c(-3,2,2)
+
+# Define gusto de los usuarios por violencia(+)/sin violencia(-)
 u_2 <- c(-3,-3,0,-2,4)
 ```
 
-Que quiere decir que las película 2,3 tienen volencia, pero la película 1 no. Por otra parte, a los usuarios 1,2 y 5 no les gustan las películas con violencia, mientras que al usuario 5 si les gustan.
+Que quiere decir que las películas $2$ y $3$ tienen volencia, pero la película $1$ no. Por otra parte, a los usuarios 1,2 y 5 no les gustan las películas con violencia, mientras que al usuario 5 si les gustan.
 
 La idea ahora es que el gusto de una persona por una película se escribe como combinación de las dos dimensiones. Por ejemplo, para la persona 1 tenemos, y la película 1, empezamos haciendo
 
 ```{r}
+# Gusto del usuario uno por la película 1 bajo la dimensión 1
 u_1[1]*v_1[1]
+
+# Gusto del usuario uno por la película 1 bajo la dimensión 2
 u_2[1]*v_2[1]
 ```
 
 lo que quiere decir que el hecho de que la película 1 no sea seria le resta 4 en gusto (pues la película 1 está del lado "divertido"), pero le suma 9 en gusto, pues es una película sin violencia y esta persona está del lado "sin violencia".
 
-Sumamos para encontrar el gusto total
+Sumamos para encontrar el gusto total, es decir $x\sim u_1v_1'+u_2v_2'$. 
 
 ```{r}
+# Gusto total del usuario uno por la pelicula uno.
 u_1[1]*v_1[1] + u_2[1]*v_2[1]
 ```
 
-Para calcular los gustos sobre todas las personas y películas, haríamos
+Para calcular los gustos sobre todas las personas y películas, juntamos los vectores en matrices para tener los $k$ descriptores:
 
 ```{r}
+# Gusto de los usuarios bajo todas las dimensiones
 U <- cbind(u_1, u_2)
+
+# Clasificación de las películas bajo todas las dimensiones. 
 V <- cbind(v_1, v_2)
+
+# Usuarios 
 U
+
+# Películas
 V
-U %*% t(V)
 ```
 
 - El renglón $j$ de $U$ son los valores en las dimensiones latentes para
 la película $i$ (descriptores de usuarios).
 - El renglón $j$ de $V$ son los valores en las dimensiones latentes para
 el usuario $j$ (descriptores de películas)
+
+
+Nota: las $u_i$'s y las $v_j$'s se llaman matrices de rango 1. 
+
+
+De esta manera, se puede estimar la calificación de cada usuario para cada película realizando el producto
+$$
+\hat{X}=UV'
+$$
+es decir, en el ejemplo tenemos que
+```{r}
+# Estimación de las calificaciones de cada usuario para cada película. 
+U %*% t(V)
+```
+
 
 
 ```{block2, type ="resumen"}
@@ -1119,8 +1166,13 @@ de $pxk$, donde $p$ es el número de películas.
 Buscamos que, si $X$ son las verdaderas calificaciones, entonces
 $$X\approx \tilde{X}.$$
 
-y nótese que esta aproximación es en el sentido de las entradas de $X$ que **son observadas**. Sin embargo, $\tilde{X}$ nos da predicciones para **todos los pares película-persona**.
+y nótese que esta aproximación es en el sentido de las entradas de $X$ que **son observadas**. Sin embargo, $\tilde{X}$ nos da predicciones para **todos los pares usuario-película**.
 ```
+
+Notar que $X$ es una matriz rala, pero $\tilde{X}$ es una matriz densa (siempre puedo tener una estimación de la calificación de cada usuario para cada película). 
+
+
+Si quisieramos tener una suma ponderada, entonces estimaríamos las calificaciones como $\tilde{X}=U\LambdaV'$ con $\Lambda$ matriz diagonal de pesos. 
 
 
 Bajo este modelo, la predicción para el usuario $i$ y la película $j$
@@ -1132,7 +1184,7 @@ que expresa el hecho de que el gusto de $i$ por $j$ depende de una combinación 
 de factores latentes de películas ponderados por gusto por esos factores del usuario.
 
 
-El número de factores latentes $k$ debe ser seleccionado (por ejemplo, según el error de validación). Dado $k$, para encontrar $U$ y $V$ (un total de $k(m+n)$ parámetros) buscamos
+El número de factores latentes $k$ debe ser seleccionado por ejemplo, según el error de validación. Dado $k$, para encontrar $U$ y $V$ (un total de $k(n+p)$ parámetros) buscamos
 minimizar 
 
 $$\sum_{(i,j)\, obs} (x_{ij}-\tilde{x}_{ij})^2,$$
@@ -1218,12 +1270,15 @@ Y una vez que encontramos $V_2$ resolvemos
 
 $$ \min_{U_2}|| X - U_2V_2^t||_{obs}^2$$
 
-Continuamos este proceso hasta encontrar un mínimo local o hasta cierto número de iteraciones. Para inicializar $V_1$, en [@alsreg] se recomienda tomar como primer
+Continuamos este proceso hasta encontrar un mínimo local o hasta cierto número de iteraciones. Notar que cada paso es un paso de MCO y pueden exisitir varios mínimos locales; de hecho, todas las permutaciones de $U$ y $V$ son una solución de mínimos cuadrados para el problema. Para inicializar $V_1$, en [@alsreg] se recomienda tomar como primer
 renglón el promedio de las calificaciones de las películas, y el resto 
 números aleatorios chicos (por ejemplo $U(0,1)$). También pueden inicializarse con números
 aleatorios chicos las dos matrices.
 
 ### Mínimos cuadrados alternados con regularización
+
+Si hay pocas calificaciones para una películas o personas con pocas evaluaciones, esto puede llevar a tener estimadores muy ruidosos por falta de observaciones. La solución propuesta es utilizar regularización. La idea es que la regugalización va a encoger a cero los coeficientes de la matriz rala que correspondan a pocas observaciones. 
+
 
 Para agregar regularización y lidiar con los datos ralos, podemos
 incluir un coeficiente adicional. Minimizamos entonces (como en
@@ -1243,7 +1298,7 @@ $m_j$ es el número de evaluaciones de la película $j$.
 (la primera suma),
 y el término de regularización: por ejemplo, si el usuario $i$ hizo
 $n_i$ evaluaciones, entonces habrá $n_i$ términos en la suma de la izquierda. Lo mismo podemos decir acerca de las películas.
-- Este no es el único posible término de regularización posible. Por ejemplo, podríamos *no* usar los pesos $n_i$ y $m_j$, y obtendríamos
+- Este no es el único término de regularización posible. Por ejemplo, podríamos *no* usar los pesos $n_i$ y $m_j$, y obtendríamos
 un esquema razonable también, donde hay más regularización relativa
 para usuarios/películas que tengan pocas evaluaciones.
 
@@ -1255,33 +1310,57 @@ En este caso, copiamos nuestra tabla a spark (nota: esto es algo que normalmente
 de spark de otra forma):
 
 ```{r,  message=FALSE, warning=FALSE}
+# Elimina algunas variables que ya no necesitamos 
 rm(list = c('dat_netflix', 'dat_entrena_2','dat_entrena_c'))
+
+# Carga la librería para conectarse a spark
 library(sparklyr)
+
 # configuración para spark
 config <- spark_config()
+
+# Amplía la memoria. 
 config$`sparklyr.shell.driver-memory` <- "4G"
 ```
 
 ```{r}
 # conectar con "cluster" local
 sc <- spark_connect(master = "local", config = config)
+
+# Hace un plan de cómo va a ejecutar las taras que se le piden. 
 spark_set_checkpoint_dir(sc, './checkpoint')
 ```
 
 Y copiamos la tabla a Spark:
 
 ```{r leertabla}
-# esto normalmente no lo hacemos en R
+# Carga la tabla a spark desde R. 
+# NOTA: esto normalmente no lo hacemos en R
 dat_tbl <- spark_read_csv(sc, name="netflix", "../datos/netflix/dat_muestra_nflix.csv") 
+
+# Elimina la fecha 
 dat_tbl <- dat_tbl %>% select(-fecha)
+
+# Copia las tablas de validación y entrenamiento a spark desde R. 
+# Notar que estos no tienen tanto problema porque son más chiquitos.  
 valida_tbl <- copy_to(sc, dat_valida %>% select(-fecha))
-entrena_tbl <- dat_tbl %>% anti_join(valida_tbl)
+
+# Nota: este anti-join corre en spark y no en la memoria de R. 
+entrena_tbl <- dat_tbl %>% anti_join(valida_tbl) 
 ```
 
-Vamos a hacer primero una descomposición en 10 factores,
+Vamos a hacer primero una descomposición en 15 factores,
 con regularización relativamente alta:
 
 ```{r als-spark}
+# Corre el modelo de factores latentes 
+# rating_col es la col con las calificaciones
+# user_col es la col con los usuarios
+# item_col es la columna con los items (peliculas)
+# Rank es el no. de factores
+# reg_param es el parámetro de regularización
+# El check point evita que la gráfica de cálculo sea demasiado grande. 
+# Cada 5 iteraciones hace una nueva gráfica con los resultados de la última iteración. 
 modelo <- ml_als(entrena_tbl, 
               rating_col = 'calif',
               user_col = 'usuario_id',
@@ -1289,20 +1368,27 @@ modelo <- ml_als(entrena_tbl,
               rank = 15, reg_param = 0.05,
               checkpoint_interval = 5,
               max_iter = 50)
-# Nota: checkpoint evita que la gráfica de cálculo
-# sea demasiado grande. Cada 5 iteraciones hace una
-# nueva gráfica con los resultados de la última iteración.
+# Nota: para ver los trabajos de spark entrar en http://localhost:8787/p/4040/jobs.
+# Es necesario haber levantado un segundo puerto en el docker. 
 ```
 
 ```{r}
+# Resúmen del modelo. 
 modelo
 ```
 
 Hacemos predicciones para el conjunto de validación:
 
 ```{r, warning = FALSE, message = FALSE, fig.width=5, fig.asp=0.7}
-preds <- sdf_predict(valida_tbl, modelo) %>% collect() #traemos a R con collect
+
+# Obtenemos las predicciones. 
+# Hace las predicciones en spark y lo traemos a R con collect
+preds <- sdf_predict(valida_tbl, modelo) %>% collect() 
+
+# Tabla de frecuencias de las predicciones faltantes
 table(is.nan(preds$prediction))
+
+# Histograma de las calificaciones. 
 ggplot(preds, aes(x = prediction)) + geom_histogram()
 ```
 
@@ -1311,20 +1397,28 @@ los usuarios o películas que no fueron vistas en entrenamiento
 por la media general (podríamos usar la predicción del modelo base).
 
 ```{r}
+# Sustituye los usuarios/películas que no fueron vistas en el entrenamiento por la media general. 
+# 
 preds$prediction[is.nan(preds$prediction)] <- 3.6
+
+# Calcula la raíz del ECM de las predicciones 
 preds %>% ungroup %>% summarise(error = recm(calif, prediction))
 ```
 
-Y redujimos considerablemente el error del modelo base. Examinamos 
-ahora las dimensiones asociadas con películas:
+Y ahora sí redujimos considerablemente el error respecto al modelo base (se redujo a 0.84). Examinamos 
+ahora las dimensiones asociadas con películas (V's):
 
 
 ```{r}
+# Extaemos de spark a R la matriz de factores asociados a las películas. 
 V_df <- collect(modelo$item_factors)
+
+# Dimensiones 
 dim(V_df)
 ```
 
 ```{r}
+# Vistazo de V
 V_df
 ```
 
@@ -1334,8 +1428,11 @@ Examinemos la interpretación de los factores latentes de las
 películas. 
 
 ```{r}
+# Agrega id de pelicula, la media y los nombres. 
 latentes_pelis <- V_df %>% 
   left_join(pelis_nombres %>% left_join(medias_peliculas) %>% rename(id = peli_id))
+
+# Divide las v'j en 10 cubetas 
 latentes_pelis <- latentes_pelis %>% 
     mutate(num_grupo = ntile(num_calif_peli, 10))
 ```
@@ -1344,46 +1441,77 @@ Para la primera dimensión latente:
 
 
 ```{r}
+# Primer factor 
 feature <- quo(features_1)
-arrange(latentes_pelis, !!feature) %>% 
-  select(nombre, !!feature, media_peli, num_calif_peli) %>% 
-  filter(num_calif_peli > 2000) %>% 
-  head(100) 
-arrange(latentes_pelis, !!feature) %>% 
-  select(nombre, !!feature, media_peli, num_calif_peli) %>% 
-  filter(num_calif_peli > 2000) %>% 
-  tail(100)
+
+
+arrange(latentes_pelis, !!feature) %>% # ordena por factores
+  select(nombre, !!feature, media_peli, num_calif_peli) %>%  # selecciona variables 
+  filter(num_calif_peli > 2000) %>%  # filtra películas con más de 2mil calificaciones
+  head(100) # primeras 100 
 ```
+
+Todas estas películas tienene el feature\_1 negativo y parecen ser "películas de niñas" es decir, novelas románticas, comedias románticas, etc. 
+
+```{r}
+arrange(latentes_pelis, !!feature) %>% # ordena por factores
+  select(nombre, !!feature, media_peli, num_calif_peli) %>% # selecciona variables 
+  filter(num_calif_peli > 2000) %>% # filtra películas con más de 2mil calificaciones
+  tail(100) # Últimas 100 películas 
+```
+
+Todas estas películas son "películas de niño" es decir, mayormente de acción y violencia. Además todos los valores son positivos, por lo que la primer componente sí parece estar capturando una diferencia en las películas. 
+
 
 La segunda dimensión latente:
 
 ```{r}
+# Segundo factor 
 feature <- quo(features_2)
-arrange(latentes_pelis, !!feature) %>% 
-  select(nombre, !!feature, media_peli, num_calif_peli) %>% 
-  filter(num_calif_peli > 2000) %>% 
-  head(100) 
-arrange(latentes_pelis, !!feature) %>% 
-  select(nombre, !!feature, media_peli, num_calif_peli) %>% 
-  filter(num_calif_peli > 2000) %>% 
-  tail(100)
+
+
+arrange(latentes_pelis, !!feature) %>% # ordena por factores
+  select(nombre, !!feature, media_peli, num_calif_peli) %>%  # selecciona variables 
+  filter(num_calif_peli > 2000) %>%  # filtra películas con más de 2mil calificaciones
+  head(100) # primeras 100 
 ```
 
+Pareciera que esta dimensión está tratando de capturar el gusto por la serie de Friends. Todos los valores son negativos. Veamos las últimas observaciones.  
 
 ```{r}
+arrange(latentes_pelis, !!feature) %>% # ordena por factores
+  select(nombre, !!feature, media_peli, num_calif_peli) %>% # selecciona variables 
+  filter(num_calif_peli > 2000) %>% # filtra películas con más de 2mil calificaciones
+  tail(100) # Últimas 100 películas 
+```
+
+Parecen ser títulos más viejos que no son series de televisión.Estos valores son positivos. 
+
+La tercera dimensión latente:
+
+```{r}
+# Tercer factor 
 feature <- quo(features_3)
-arrange(latentes_pelis, !!feature) %>% 
-  select(nombre, !!feature, media_peli, num_calif_peli) %>% 
-  filter(num_calif_peli > 2000) %>% 
-  head(100) 
-arrange(latentes_pelis, !!feature) %>% 
-  select(nombre, !!feature, media_peli, num_calif_peli) %>% 
-  filter(num_calif_peli > 2000) %>% 
-  tail(100)
+
+
+arrange(latentes_pelis, !!feature) %>% # ordena por factores
+  select(nombre, !!feature, media_peli, num_calif_peli) %>%  # selecciona variables 
+  filter(num_calif_peli > 2000) %>%  # filtra películas con más de 2mil calificaciones
+  head(100) # primeras 100 
 ```
 
+Pareciera que esta dimensión está tratando de separar las películas de ficción/acción. 
 
 ```{r}
+arrange(latentes_pelis, !!feature) %>% # ordena por factores
+  select(nombre, !!feature, media_peli, num_calif_peli) %>% # selecciona variables 
+  filter(num_calif_peli > 2000) %>% # filtra películas con más de 2mil calificaciones
+  tail(100) # Últimas 100 películas 
+```
+Aqui tanto los primeros como los últimos son negativos, pero cambian bastante en magnitud. 
+
+```{r}
+# Se desconecta de spark
 sparklyr::spark_disconnect_all()
 ```
 
@@ -1431,8 +1559,7 @@ y
 $$\frac{\partial L_{i,j}}{\partial v_{j,t}} = -2e_{i,j} u_{i,t}
 $$
 
-El resto de las derivadas son iguales a 0 (para otros $u_a^{(m)}$, 
-$v_b^{(m)}$). Esto nos da la dirección del gradiente en cada paso del descenso estocástico. 
+El resto de las derivadas son iguales a 0 $\left(\text{para otros} u_a^{(m)}, v_b^{(m)}\right)$. Esto nos da la dirección del gradiente en cada paso del descenso estocástico. 
 
 ```{block2, type = 'comentario'}
 Sea $\gamma >0$ el tamaño de paso (tasa de aprendizaje) de descenso estocástico.
@@ -1500,8 +1627,8 @@ Sea $\gamma >0$ el tamaño de paso (tasa de aprendizaje) de descenso estocástic
 y $\lambda \geq 0$ una constante de regularización. Sea $n_i$ el número
 de evaluaciones del usuario $i$ y $m_j$ el número de evaluaciones para
 la película $j$.
-Para cada evaluación $x_{i,j}$, la actualización de descenso está dada por,
-en forma vectorial:
+Para cada evaluación $x_{i,j}$, la actualización de descenso está dada,
+en forma vectorial, por:
                                                                             
 $$
 u_i^{(n+1)} = u_i^{(n)} + \gamma \left ( e_{i,j} v_j^{(n)} - \frac{\lambda}{n_i} u_i^{(n)} \right )
@@ -1544,12 +1671,16 @@ Usaremos una  implementación en C++ para tener mejor desempeño
 
 
 ```{r}
+# Carga librería
 library(Rcpp)
+# Carga archivos .cpp
 Rcpp::sourceCpp('../src/factorizacion_mat/descenso_estocastico.cpp')
 Rcpp::sourceCpp('../src/factorizacion_mat/calc_error_bias.cpp')
 ```
 
 ```{r, comment=""}
+# Nota: esto es eficiente en el uso de memoria y no está haciendo 
+# copias de tablas y/u objetos como R. 
 cat(readLines('../src/factorizacion_mat/descenso_estocastico.cpp'), sep = "\n")
 ```
 
@@ -1557,26 +1688,47 @@ cat(readLines('../src/factorizacion_mat/descenso_estocastico.cpp'), sep = "\n")
 Por ejemplo:
 
 ```{r}
+# Carga librería 
 library(Matrix)
-# entrenamiento
+
+# --- entrenamiento---
 set.seed(1182)
+
 #permutamos para las rondas de descenso estocástico
 permutacion <- sample(1:length(dat_entrena$usuario_id), 
                       length(dat_entrena$usuario_id))
+
+# Índice de usuario
 i <- dat_entrena$usuario_id[permutacion]
+
+# Índice de película 
 j <- dat_entrena$peli_id[permutacion]
+
+# Calif del usuario i para la pelicula j
 y <- dat_entrena$calif[permutacion]
-# validación
+
+
+# --- validación ---
+# Índice de Usuario 
 i_val <- dat_valida$usuario_id
+
+# Índice de Película 
 j_val <- dat_valida$peli_id
+
+# Calificación usuario i película j en validación 
 y_val <- dat_valida$calif
 ```
 
 Podemos agregar también dos usuarios nuevos con evaluaciones
 opuestas (puedes llenar con tus preferencias)
 ```{r}
+# Id de usuario nvo 1
 i_usuario_1 <- rep(100001, 12)
+
+# Id de usurio nvo 2
 i_usuario_2 <- rep(100002, 12)
+
+# Películas a evaluar para estos usuarios
 nombres_evaluar <- data_frame(nombre = 
                     c('Ghost', 'Pretty Woman', 'Driving Miss Daisy',
                       'The Fast and the Furious', 'Meet the Fockers',
@@ -1584,10 +1736,20 @@ nombres_evaluar <- data_frame(nombre =
                      'Being John Malkovich', 'A Clockwork Orange', 
                      'Fight Club', 'Pulp Fiction',
                      'The Terminator'))
+
+# Evaluaciones del usuario nvo 1
 evals_1 <- c(1, 2, 2, 4, 3, 4, 4, 2, 4, 5, 5, 5)
+
+# Evaluaciones del usuario nvo 2 (opuestas)
 evals_2 <- 6 - evals_1
+
+# Asigna evaluación del usuario nvo 1 a las películas
 nombres_evaluar$evals <- evals_1
+
+# Vemos los datos. 
 nombres_evaluar
+
+# Extrae el id de las películas a evaluar  
 j_evaluar <- medias_pelis %>% semi_join(nombres_evaluar) %>% pull(peli_id)
 
 ```
@@ -1595,9 +1757,18 @@ j_evaluar <- medias_pelis %>% semi_join(nombres_evaluar) %>% pull(peli_id)
 
 
 ```{r descenso}
+# Algoritmo de descenso estocástico
+
+# usuarios
 i <- c(i, i_usuario_1, i_usuario_2)
+
+# películas
 j <- c(j, j_evaluar, j_evaluar)
+
+# calificaciones 
 y <- c(y, evals_1, evals_2)
+
+# Crea la matriz de datos (tiene muchos missings, i.e. es una matriz rala)
 X <- sparseMatrix(i, j, x = y, dims=c(max(i), 17770))
 dim(X)
 ```
@@ -1608,28 +1779,50 @@ dim(X)
 #test <- irlba(X, nv = 4, nu = 4)
 #U_0 <- test$u%*%sqrt(diag(test$d))
 #V_0 <- test$v%*%sqrt(diag(test$d))
-#inicialización
+
+#inicialización para 4 factores 
 set.seed(2805)
+
+# Matrices iniciales aleatorias con 4 factores.
 U_0 <- matrix(rnorm(4 * max(i), 0, 0.01), ncol = 4)
 V_0 <- matrix(rnorm(4 * 17770, 0, 0.01), ncol = 4)
+
+# Fija los parametros iniciales 
 U <- U_0
 V <- V_0
+
+# Extrae número calificaciones por usuarios y por películas 
 num_usu <- rowSums(X>0) + 1
 num_peli <- colSums(X>0) + 1
+
+# Calcula la calificación promedio
 mu <- mean(y)
+
+# Media por usuario
 a <- rowSums(X)/rowSums(X>0) - mean(y)
 a[is.nan(a)] <- 0
+
+# Media por película 
 b <- colSums(X)/colSums(X>0) -  mean(y)
 print(sqrt(calc_error(i, j, y, U, V, mu, a, b)))
 
+# Corre 10 iteraciones del algoritmo 
 for(iter in 1:10){
+  
   # nota: la función descenso_gradiente (C++) no hace copias de U,V,a,b
   # cambia in-place estos parámetros
+  # tasa de aprendizaje =0.005, param regularización=10 (ambos)
   salida <- descenso_estocastico(i, j, y, U, V, mu, a, b, 
               gamma = 0.005, lambda_mat = 10, lambda_sesgos = 10,
               n_iter = 1, num_peli, num_usu)
+  
+  # Calcula la raíz del error de entrenamiento 
   error_entrena <- sqrt(calc_error(i, j, y, U, V, mu, a, b))
+  
+  # Calcula la raiz del error de validación 
   error_valida <- sqrt(calc_error(i_val, j_val, y_val, U, V, mu, a, b))
+  
+  # Imprime resultados
   sprintf("Iteración: %i, Error entrena: %.4f, Error valida: %.4f", 
                         iter,
                         error_entrena, error_valida) %>% print
@@ -1637,61 +1830,114 @@ for(iter in 1:10){
 }
 ```
 
+Notar que el error de entrenamiento y de validación son muy cercanos. Cuando hay una divergencia muy grande estos (entrenamiento muy chico y validación muy grande) se tiene un indicador de sobre ajuste del modelo. Para controlar esto, tenemos las u's, v's y $\lambda$. Lo primero que podemos hacer es regularizar más o tomar menos factores. 
+
+
+Notar también que aumentar el número de factores siempre hará que disminuya el error de entrenamiento pero tienes más riesgo de sobreajustar el modelo. 
+
+
+Veamos las preferencias para el primer usuario.
 
 ```{r}
+
+# Extraemos el usuario nuevo 1. 
 usuario_1_u <- U[100001, ]
+
+# Obtenemos las preferencias por cada película disponible 
 prefs_1 <- mu + a[100001] + b + V %*% usuario_1_u %>% as.numeric
-prefs <- data_frame(prefs = prefs_1, peli_id = 1:17770) %>% 
-  left_join(medias_pelis, by = 'peli_id') %>%
-  arrange(desc(prefs)) %>% 
-  filter(num_calif_peli > 500) %>%
-  select(peli_id, nombre, prefs) %>% top_n(100, prefs) 
+
+# Extraemos las películas mejor evaluadas 
+prefs <- data_frame(prefs = prefs_1, peli_id = 1:17770) %>%  # crea data frame 
+  left_join(medias_pelis, by = 'peli_id') %>% # agerga la media de las películas 
+  arrange(desc(prefs)) %>% # ordena por preferencia 
+  filter(num_calif_peli > 500) %>% # filtra por mas de 500 evaluaciones
+  select(peli_id, nombre, prefs) %>% # selecciona variables 
+  top_n(100, prefs) # primeras 100 mejor evaluadas
+
+# Imprime la tabla 
  DT::datatable(prefs)
 ```
 
+Por lo tanto, lo que le recomendaríamos al primer usuario, sería el Señor de los anillos, lost, starwars, etc... 
+
+Veamos el segundo usuario.
+
 ```{r}
+# Extrae al usuario nuevo 2
 usuario_2_u <- U[100002, ]
+
+# Calcula preferencias 
 prefs_2 <- mu + a[100002] + b + V %*% usuario_2_u %>% as.numeric
-prefs <- data_frame(prefs = prefs_2, peli_id = 1:17770) %>% 
-  left_join(medias_pelis) %>%
-  arrange(desc(prefs)) %>% 
-  filter(num_calif_peli > 500) %>%
-  select(nombre, prefs) %>% top_n(100, prefs) 
+
+# Extrae preferencias 
+prefs <- data_frame(prefs = prefs_2, peli_id = 1:17770) %>% # crea data frame 
+  left_join(medias_pelis) %>% # agrega media de peliculas
+  arrange(desc(prefs)) %>% # ordena por preferencias
+  filter(num_calif_peli > 500) %>% # filtra por numero de calificaciones 
+  select(nombre, prefs) %>% top_n(100, prefs) # primeras 100 mejor evaluadas
+
+# Tabla 
 DT::datatable(prefs)
 ```
 
+Vemos que, como intencionalmente lo diseñamos, al usuario 2 se le harían recomendaciones totalmente opuestas a las del usuario uno (salvo por lost): Sex and the city, the west wing, gilmore girls, etc. 
 
 Filtramos para ver películas bien conocidas, y muestreamos para
 empezar a entender el significado de las dimensiones:
 
 ```{r, fig.width = 10, fig.asp = 0.7}
+# Carga librería
 library(ggrepel)
+
+# Extrae las características para las películas  y agrega nombre y media 
 V_df <- as_data_frame(V) %>% mutate(peli_id=1:nrow(V)) %>%
   left_join(medias_pelis) 
+
+# Fija la semilla 
 set.seed(12211)
+
+# Toma una muestra de 100 películas con más de 10mil calificaciones 
 muestra_graf <- V_df %>%
   filter(num_calif_peli > 10000) %>%
   sample_n(100)
+
+# Grafica las películas, el color representa la media
 ggplot(muestra_graf,
        aes(x = V1, y= V2, label=nombre, colour=media_peli))+
-  geom_point() + geom_text_repel(size=3.5, segment.alpha = 0.3, direction = 'y')
+  geom_point() +
+  geom_text_repel(size=3.5, segment.alpha = 0.3, direction = 'y')+
+  ggtitle('Dimensiones 1 y 2')+
+  theme(plot.title = element_text(hjust=0.5))
 ```
 
+Podemos percibir algunas agrupaciones por $V1$ y $V2$ aunque no es trivial identificar de qué componente se trata. 
 
 ```{r, fig.width = 10, fig.asp = 0.7}
 ggplot(muestra_graf,
        aes(x = V3, y= V4, label=nombre, colour=media_peli))+
-  geom_point() + geom_text_repel(size=3.5, segment.alpha = 0.3, direction='y')
+  geom_point() + 
+  geom_text_repel(size=3.5, segment.alpha = 0.3, direction='y')+
+  ggtitle('Dimensiones 3 y 4')+
+  theme(plot.title = element_text(hjust=0.5))
 ```
+Pareciera que en al parte superior derecha tenemos novelas y comedias románticas, mientras que en la parte inferior izquierda tenemos películas de ciencia ficción y acción, en la parte inferior izauierda películas "tontas". 
+
 
 En la distribución de las películas en el espacio de dimensiones podemos
-apreciar el efecto del encogimiento:
+apreciar el efecto del encogimiento (distribución del no. de evaluaciones) :
 
 ```{r}
+# Cuantiles para le número de calificaciones 
 quantile(V_df$num_calif_peli, probs = seq(0, 1, 0.1))
+
+# Grafica de dimensiones por cuantiles. 
 ggplot(V_df, aes(x = V1, y= V2, label=nombre)) +
-  geom_point(alpha=0.5, size=0.5) + facet_wrap(~ntile(num_calif_peli, 10)) 
+  geom_point(alpha=0.5, size=0.5) + 
+  facet_wrap(~ntile(num_calif_peli, 10)) 
 ```
+
+Las calificaciones para las películas con menor numero de calificaciones están concentradas cerca del cero y las otras están más expandidas. 
+
 
 ## Más acerca del concurso de Netflix
 
@@ -1709,9 +1955,15 @@ En esta gráfica vemos el promedio local de las calificaciones conforme
 transcurre el tiempo:
 
 ```{r, fig.width = 6, fig.asp=0.7}
+# Carga librería
 library(lubridate)
+
+# Grafica las calificaciones a lo largo del tiempo para una muestra de los datos de entrenamiento.
 ggplot(sample_n(dat_entrena, 5000), aes(x= ymd(fecha), y = calif)) + 
-  geom_smooth(method = 'loess', span=0.3, lambda = 1)
+  geom_smooth(method = 'loess', span=0.3)+
+  xlab('Fecha')+
+  ylab('Calificaciones')
+
 ```
 
 
@@ -1720,9 +1972,13 @@ calificaciones más altas (esto puede ser porque son las "sobreviven" en
 los catálogos).
 
 ```{r, fig.width = 6, fig.asp=0.7}
+# Gráfica de calificaciones promedio para películas con más de 1000 eval
 ggplot(filter(medias_pelis, num_calif_peli > 1000), 
        aes(x = año, y = media_peli)) + 
-  geom_point(alpha=0.4) + geom_smooth(method = 'loess', lambda = 1, span=0.4)
+  geom_point(alpha=0.4) + geom_smooth(method = 'loess',  span=0.4)+
+  xlab('Año')+
+  ylab('Calificación Promedio por Película')
+
 ```
 
 - Finalmente, el equipo ganador combinó varios métodos para mejorar la 
@@ -1754,6 +2010,10 @@ aunque un documental de ballenas que simplemente me gustó le pongo un 5.
 En los datos implícitos se vería de todas formas mi consumo frecuente
 de *Buffy the Vampire Slayer*, y quizá unos cuantos de documentales 
 famosos.
+
+
+Cada vez es más raro poner calificaciones explícitas porque necesitar hacer que el usuario asigne una calificación y no se tiene un uso homogéneo de la escala. Es más conveniente utilizar datos implícitos en la actividad del usuario. 
+
 
 Sea $r_{ij}$ una medida implícita como las mencionadas arriba, para el usuario
 $i$ y el artículo $j$. Ponemos $r_{i,j}=0$ cuando no se ha observado interacción
@@ -1848,6 +2108,6 @@ el conjunto de validación podemos hacer:
 - Ponemos 50\% de los artículos evaluados por estas personas en validación, por ejemplo.
 
 Estas cantidades dependen de cuántos datos tengamos, como siempre, para tener
-un tamaño razonable de de datos de validación.
+un tamaño razonable de datos de validación.
 
 

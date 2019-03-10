@@ -1,0 +1,516 @@
+---
+title: 'Tarea 6: Sistemas de Recomendación (parte 2)'
+author: "Alejandra Lelo de Larrea Ibarra"
+date: "09/03/2019"
+output: 
+  html_document:
+    toc: TRUE
+    toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Preparación
+
+Consideramos el conjunto chico de calificaciones de películas de 
+[MovieLens](https://grouplens.org/datasets/movielens/). Son unas 100 mil
+evaluaciones de 610 usuarios sobre 9 mil películas.
+
+
+## Datos
+```{r}
+# Cargamos librería
+library(tidyverse)
+library(gridExtra)
+
+# Leemos los datos
+movies <- read_csv("../datos/ml-latest-small/movies.csv")
+ratings <- read_csv("../datos/ml-latest-small/ratings.csv")
+```
+
+```{r}
+# Vemos la base de datos de los ratings
+ratings
+```
+
+Tenemos datos del id de usuario, el id de la pelicula, la calificación que le dieron y la marca del tiempo.
+
+```{r}
+# No de calificaciones
+nrow(ratings)
+```
+
+Se tiene un total de `r nrow(ratings)` calificaciones.
+
+```{r}
+# No de evaluaciones por usuario
+resumen <- ratings %>% # datos ratings
+  group_by(userId) %>% # agrupa por usuario
+  summarise(num_ratings = length(rating)) # calcula no de eval.
+
+# Distribución del no. de calificaciones por usuario
+quantile(resumen$num_ratings)
+```
+
+```{r,fig.width=12,fig.height=4}
+ggplot(resumen,aes(x=num_ratings))+
+  geom_histogram(binwidth = 10,fill='firebrick1')+
+  ggtitle('Distribución del no. de evaluaciones por usuario')+
+  xlab('No. Evaluaciones')+
+  ylab('Frecuencias')+
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+
+Vemos que el 50% de los usuarios tienen entre 20 y 70 calificaciones. Hay muy pocos usuarios con un número altísimo de evaluaciones. En promedio, un usuario tiene `r mean(resumen$num_ratings)` evaluaciones.
+
+
+```{r}
+# Vemos la base de datos de las películas
+movies
+```
+
+Se tiene el id de la película, el título y los géneros a los que pertenece. 
+
+```{r}
+# No de películas
+nrow(movies)
+```
+
+En total, se tienene `r nrow(movies)` películas en la base de datos. 
+
+## Datos de Validación y Entrenamiento
+
+
+```{r}
+length(unique(ratings$userId))
+```
+
+Se tiene un total de 610 usuarios. Seleccionamos 300 usuarios para la muestra de validación
+
+```{r}
+# Fija la semilla
+set.seed(5512)
+
+# Selecciona aleatoriamente 300 usuarios de validación de los 610 disponibles
+user_id_valid <- ratings$userId %>% unique %>% sample(size = 300)
+```
+
+Y seleccionamos el 20\% de las últimas evaluaciones de estos usuarios:
+
+```{r}
+# Selecciona 20% de evaluaciones.
+validacion <- ratings %>% # datos ratings
+  filter(userId %in% user_id_valid) %>% # extrae usuarios en validación
+  group_by(userId) %>% # agrupa por usuario
+  mutate(rank = rank(timestamp, ties.method = "random") / length(timestamp)) %>% # ordena observaciones
+  filter(rank >= 0.8) # se queda con el último 20% de la muestra
+
+# no de calificaciones en validación
+nrow(validacion)
+```  
+
+El conjunto de validación tiene 300 usuarios y 9,803 calificaciiones.
+
+
+```{r}
+# Extrae los datos de entrenamiento
+entrena <- ratings %>% anti_join(validacion)
+
+# No de obs de entrenamiento
+nrow(entrena)
+```
+
+Se tienen 310 usuarios en entrenamiento con 91,033 evaluaciones.
+
+
+### Pregunta 1
+
+¿Cuáles son las películas mejor evaluadas? Reporta la
+media y el número de evaluaciones. Recuerda filtrar por películas que han sido
+poco vistas. Describe la distribución de número de evaluaciones por usuario (usa
+cuantiles o un histograma, por ejemplo). ¿Cuántas evaluaciones hizo el usuario
+con menos evaluaciones?
+
+Para los datos de entrenamiento, extraemos la media y el no. de evaluaciones por película. Filtramos aquellas películas que tienen más de 100 evaluaciones. Las películas mejor evaluadas son: 
+```{r}
+p1<-entrena %>% # datos entrenamiento
+  group_by(movieId) %>% # agrupa por película
+  summarise(calif_prom=mean(rating),
+            num_eval=n()) 
+
+p1_a<-p1%>% # calcula media y no. eval
+  arrange(desc(calif_prom,num_eval)) %>% #ordena observaciones
+  filter(num_eval>100) %>% # Filtra por número de calificaciones
+  left_join(select(movies,movieId,title),by='movieId') %>% # Agrega título de pelicula
+  select(movieId,title,calif_prom,num_eval)
+
+DT::datatable(p1_a)
+```
+
+```{r, fig.width=12,fig.height=4}
+
+q1<-ggplot(p1,aes(x=num_eval)) +
+  geom_histogram(binwidth=10,fill='royalblue') +
+  ggtitle('Distribución del Número de Evaluaciones')+
+  xlab('No. de Evaluaciones')+
+  ylab('Frecuencia')+
+  theme(plot.title = element_text(hjust=0.5))
+
+q2<-ggplot(p1,aes(y=num_eval)) +
+  geom_boxplot(fill='darkgoldenrod') +
+  ggtitle('Distribución del Número de Evaluaciones')+
+  xlab('No. de Evaluaciones')+
+  ylab('Frecuencia')+
+  theme(plot.title = element_text(hjust=0.5))
+
+grid.arrange(q1,q2,nrow=1)
+```
+
+```{r}
+quantile(p1$num_eval)
+```
+
+```{r}
+summary(p1$num_eval)
+```
+
+De las gráficas y tablas anteriores, para el número de evaluaciones podemos notar que:
+
+* La distribución está sesgada a la derecha. Es decir, son pocas las películas que tienen un gran número de evaluaciones.
+
+* El número promedio de evaluaciones por película es de 10. 
+
+* El 50% de las películas en la muestra tienen entre 1 y 3 evaluaciones. 
+
+* Sólo el 25% de la muestra tienen más de 8 evaluaciones. 
+
+* La película con más evaluaciones es `r p1_a$title[which(p1_a$num_eval==max(p1$num_eval))]`.
+
+
+### Pregunta 2 
+
+Explica el proceso de selección de la muestra de validación para 
+este ejemplo (ojo: utiliza el timestamp de la calificación). 
+
+Para seleccionar la muestra de validacion, elegimos aleatoriamente prácticamente el 50% de los usuarios en la muestra (300 de los 610 disponibles). Para cada uno de estos usuarios, se ordena las películas evaluadas por el timestamp (ie. momento en que vieron las películas) y seleccionamos el ultimo 20% de películas vistas por los usuarios. Esto ayuda a incoroporar el hecho de que queremos hacer predicciones para películas vistas en un futuro.
+
+
+# Evaluación de modelo de referencia
+
+## Cálculo de promedios
+
+```{r}
+# Calif promedio y no. de evaluaciones por película
+pelis_medias <- entrena %>% # datos entrenamiento
+  group_by(movieId) %>% # agrupa por película
+  summarise(media_peli = mean(rating), num_eval = length(rating)) # calcula calif. promedio y no de eval. 
+
+# Califiación promedio por usuario
+usuarios_medias <- entrena %>% # datos entrenamiento
+  group_by(userId) %>% # agrupa por usuario
+  summarise(media_usuario = mean(rating)) # calcula calif.promedio
+
+# Promedio general
+media_gral <- mean(entrena$rating)
+```
+
+## Cálculo de Predicciones
+```{r}
+# Modelo de referencia para los datos de entrenamiento
+entrena_ref <- entrena %>% # datos de entrenamiento
+  ungroup %>% # desagrupa el id de usuario
+  left_join(pelis_medias) %>% # Agrega media de cada película
+  left_join(usuarios_medias) %>% # Agrega la media de cada usuario
+  mutate(pred = media_peli + (media_usuario - media_gral)) %>% # pred. modelo base.
+  mutate(pred = ifelse(is.na(pred), media_gral, pred)) %>% # asigna media general a los na's
+  mutate(rating_c = rating - pred) # calcula la diferencia de la calif con la predicción base
+
+
+# Obtiene las predicciones con el modelo de referencia para el conjunto de validación
+valida_ref <- validacion %>% # datos validación
+  ungroup %>% # desagurpa por id de usuario
+  left_join(pelis_medias) %>% # agrega media de peliculas
+  left_join(usuarios_medias) %>% # agrega media de usuarios
+  mutate(pred = media_peli + (media_usuario - media_gral)) %>% # pred. modelo base.
+  mutate(pred = ifelse(is.na(pred), media_gral, pred)) # asigna media general a los na's
+
+```
+
+### Pregunta 3
+
+Calcula la raíz del error cuadrático medio del modelo de referencia
+(entrenamiento y validación).
+
+```{r}
+
+# Función para calcular la raíz del error cuadrático medio. 
+recm <- function(calif, pred){
+  sqrt(mean((calif - pred)^2))
+}
+
+error_entrena<-recm(entrena_ref$rating,entrena_ref$pred)
+
+error_valida<-recm(valida_ref$rating,valida_ref$pred)
+
+```
+
+
+El error de entrenamiento es de `r error_entrena` y el error de validación es de `r error_valida`. El error de validación es un poco más grande que el de entrenamiento (diferencia de `r error_valida-error_entrena`). 
+
+
+# Mínimos cuadrados alternados
+
+## Conexión a spark
+
+Ahora probamos mínimos cuadrados alternados con 2 factores latentes
+
+```{r}
+# Cargamos la librería de spark
+library(sparklyr)
+
+# Nos conectamos a spark
+sc <- spark_connect(master = "local")
+
+# Establecemos el checkpoint
+spark_set_checkpoint_dir(sc, './checkpoint')
+```
+
+## Datos con ajuste por medias
+En este ejemplo, ajustamos por media de películas y usuarios antes
+de correr el modelo:
+
+```{r}
+# Cargamos los datos de enternamiento con el modelo de referencia a spark
+entrena_tbl <- copy_to(sc, entrena_ref, overwrite = T)
+
+# Cargamos los datos de validación con el modelo de referencia a spark
+valida_tbl <- copy_to(sc, valida_ref, overwrite = T)
+```
+
+## Modelo de factores latentes
+
+Corremos el modelo de dos factores latentes con los siguientes parámetros:
+
+* rating_col = rating_c (desviaciones)
+
+* user_col = userId
+
+* item_col = movieId
+
+* rank = 2
+
+```{r}
+# rellena valores (usa rango 2 al principio)
+modelo <- ml_als(entrena_tbl,
+                 rating_col = 'rating_c',
+                 user_col = 'userId',
+                 item_col = 'movieId',
+                 rank = 2,
+                 reg_param = 0.1,
+                 checkpoint_interval = 5,
+                 max_iter = 50)
+```
+
+
+## Predicciones 
+
+Calcula las predicciones y coléctalas al ambiente de R:
+
+```{r}
+# Calcula las predicciones para el conjunto de validación 
+preds_valida<- sdf_predict(valida_tbl, modelo) %>% # predicciones para validación
+  collect() %>% # las extrae a R.
+  mutate(final_pred = pred + prediction)%>% # Suma el modelo base a las predicciones de desviaciones.
+  mutate(final_pred = ifelse(is.na(final_pred), media_gral, final_pred)) # Asigna media general para aquellas que no tienen prediccion
+
+# Calcula las predicciones para el conjunto de validación 
+preds_entrena <- sdf_predict(entrena_tbl, modelo) %>% # predicciones para entrenamiento
+  collect() %>% # las extrae a R.
+  mutate(final_pred = pred + prediction) # Suma el modelo base a laspredicciones de desviaciónes.
+```
+
+### Pregunta 4
+
+Explica por qué el cálculo de *final_pred*. Calcula el error de entrenamiento y validación para este modelo.
+
+Se necesita calcular el valor de **final_pred** porque el modelo se ajusta a las deviaciones de las predicciones del modelo base respecto de las calificaciones observadas. Para regresar a la escala original es necesario sumar el modelo base a las predicciones de las desviaciones. 
+
+Para los errores tenemos: 
+
+```{r}
+# Error de entrenamiento bajo MCA
+error_entrena_MCA<-recm(preds_entrena$rating,preds_entrena$final_pred)
+
+# Error de validación bajo MCA
+error_valida_MCA<-recm(preds_valida$rating,preds_valida$final_pred)
+```
+
+El error de entrenamiento bajo mínimos cuadrados alternados es de `r error_entrena_MCA` y el error de validación es de `r error_valida_MCA`. El error de validación sigue siendo un poco más grande que el de entrenamiento (diferencia de `r error_valida_MCA-error_entrena_MCA`). Respecto al modelo base, el error de validación `r ifelse(error_valida>error_valida_MCA,"disminuyó","aumentó")` pasando de `r error_valida` a `r error_valida_MCA`.
+
+
+### Pregunta 5
+
+Según los resultados que obtuviste en la pregunta anterior, intenta
+incrementar o decrementar la regularización. Reporta error de entrenamiento y validación.
+
+```{r}
+calcula_regparam<-function(factores){
+  
+  fun<-function(lambda){
+    
+    # Corremos el modelo para la lambda especificada
+    mod <- ml_als(entrena_tbl,
+                  rating_col = 'rating_c',
+                  user_col = 'userId',
+                  item_col = 'movieId',
+                  rank = factores,
+                  reg_param = lambda,
+                  checkpoint_interval = 5,
+                  max_iter = 50)
+    
+    # Calcula las predicciones para el conjunto de validación 
+    preds_valida<- sdf_predict(valida_tbl, mod) %>% # predicciones para validación
+      collect() %>% # las extrae a R.
+      mutate(final_pred = pred + prediction)%>% # Suma el modelo base a las predicciones de desviaciones.
+      mutate(final_pred = ifelse(is.na(final_pred), media_gral, final_pred)) # Asigna media general para aquellas que no tienen prediccion
+    
+    
+    # Calcula el error de validación bajo MCA
+    error_valida<-recm(preds_valida$rating,preds_valida$final_pred)
+    error_valida
+    
+  }
+  
+  fun
+}
+
+calcula_regparam_2factores<-calcula_regparam(factores=2)
+
+# Posibles valores de lambda
+lambdas<-seq(from=0.1,to=0.3,by=0.02)
+
+# Error de validación para cada lambda
+errores_valida_lambdas<-lapply(lambdas,calcula_regparam_2factores)%>%unlist
+
+# Crea data frame
+data_plot<-data_frame(lambdas,errores_valida_lambdas)
+
+# Grafica los datos
+ggplot(data_plot,aes(x=lambdas,y=errores_valida_lambdas))+
+  geom_point(color='red')+
+  geom_line()+
+  ggtitle('Error de validación para distintas lambdas')+
+  xlab('Lambda')+
+  ylab('Error de Validación')+
+  theme(plot.title=element_text(hjust=0.5))
+
+lambda_star=data_plot$lambdas[which.min(data_plot$errores_valida_lambdas)]
+```
+
+
+```{r}
+# Se corre el modelo con la lambda que genera el menor error de validación 
+modelo2 <- ml_als(entrena_tbl,
+                  rating_col = 'rating_c',
+                  user_col = 'userId',
+                  item_col = 'movieId',
+                  rank = 2,
+                  reg_param = lambda_star,
+                  checkpoint_interval = 5,
+                  max_iter = 50)
+
+
+# Calcula las predicciones para el conjunto de validación 
+preds_valida2<- sdf_predict(valida_tbl, modelo2) %>% # predicciones para validación
+  collect() %>% # las extrae a R.
+  mutate(final_pred = pred + prediction)%>% # Suma el modelo base a las predicciones de desviaciones.
+  mutate(final_pred = ifelse(is.na(final_pred), media_gral, final_pred)) # Asigna media general para aquellas que no tienen prediccion
+
+
+# Calcula las predicciones para el conjunto de validación 
+preds_entrena2 <- sdf_predict(entrena_tbl, modelo2) %>% # predicciones para entrenamiento
+  collect() %>% # las extrae a R.
+  mutate(final_pred = pred + prediction) # Suma el modelo base a laspredicciones de desviaciónes.
+
+
+# Error de entrenamiento bajo MCA
+error_entrena_MCA2<-recm(preds_entrena2$rating,preds_entrena2$final_pred)
+
+# Error de validación bajo MCA
+error_valida_MCA2<-recm(preds_valida2$rating,preds_valida2$final_pred)
+```
+
+Al estimar el modelo con una regularización de `r lambda_star` se obtiene un error de entrenamiento bajo mínimos cuadrados alternados es de `r error_entrena_MCA2` y el error de validación es de `r error_valida_MCA2`. El error de validación sigue siendo un poco más grande que el de entrenamiento (diferencia de `r error_valida_MCA2-error_entrena_MCA2`). Respecto al modelo base, el error de validación `r ifelse(error_valida>error_valida_MCA2,"disminuyó","aumentó")` pasando de `r error_valida` a `r error_valida_MCA2`. Respecto al modelo con el parametro de regularización anterior se tiene que el error de validación `r ifelse(error_valida_MCA>error_valida_MCA2,"disminuyó","aumentó")` pasando de `r error_valida_MCA` a `r error_valida_MCA2`.
+
+
+### Pregunta 6 (opcional)
+
+Cambia el número de factores y afina la regularización para mejorar
+los resultados del inciso anterior.
+
+```{r}
+t<-Sys.time()
+params<-list(factores=3:5,
+             lambda=seq(0.02,1,by=0.02))%>%
+  expand.grid
+
+params$error_valida<-apply(params,1,function(x){
+  mod<-calcula_regparam(x[1])
+  mod(x[2])
+})
+
+t<-Sys.time()-t
+t
+
+ggplot(params,aes(x=lambda,y=error_valida,group=as.factor(factores),color=as.factor(factores)))+
+  geom_point()+
+  geom_line()
+
+params_star<-params[which.min(params$error_valida),]
+params_star
+```
+
+```{r}
+# Se corre el modelo con la lambda que genera el menor error de validación 
+modelo3 <- ml_als(entrena_tbl,
+                  rating_col = 'rating_c',
+                  user_col = 'userId',
+                  item_col = 'movieId',
+                  rank = as.numeric(params_star[1]),
+                  reg_param = as.numeric(params_star[2]),
+                  checkpoint_interval = 5,
+                  max_iter = 50)
+
+
+# Calcula las predicciones para el conjunto de validación 
+preds_valida3<- sdf_predict(valida_tbl, modelo3) %>% # predicciones para validación
+  collect() %>% # las extrae a R.
+  mutate(final_pred = pred + prediction)%>% # Suma el modelo base a las predicciones de desviaciones.
+  mutate(final_pred = ifelse(is.na(final_pred), media_gral, final_pred)) # Asigna media general para aquellas que no tienen prediccion
+
+
+# Calcula las predicciones para el conjunto de validación 
+preds_entrena3 <- sdf_predict(entrena_tbl, modelo3) %>% # predicciones para entrenamiento
+  collect() %>% # las extrae a R.
+  mutate(final_pred = pred + prediction) # Suma el modelo base a laspredicciones de desviaciónes.
+
+
+# Error de entrenamiento bajo MCA
+error_entrena_MCA3<-recm(preds_entrena3$rating,preds_entrena3$final_pred)
+error_entrena_MCA3
+
+# Error de validación bajo MCA
+error_valida_MCA3<-recm(preds_valida3$rating,preds_valida3$final_pred)
+error_valida_MCA3
+```
+
+Al aumentar el número de factores a `r as.numeric(params_star[1])` con un parametro de regularización de `r as.numeric(params_star[2])` se obtiene un error de entrenamiento bajo mínimos cuadrados alternados es de `r error_entrena_MCA3` y el error de validación es de `r error_valida_MCA3`. El error de validación sigue siendo un poco más grande que el de entrenamiento (diferencia de `r error_valida_MCA3-error_entrena_MCA3`). 
+
+* Respecto al modelo base, el error de validación `r ifelse(error_valida>error_valida_MCA3,"disminuyó","aumentó")` pasando de `r error_valida` a `r error_valida_MCA3`. 
+
+* Respecto al modelo con dos factores y parámetro de regularización de 0.1 se tiene que el error de validación `r ifelse(error_valida_MCA>error_valida_MCA3,"disminuyó","aumentó")` pasando de `r error_valida_MCA` a `r error_valida_MCA3`.
+
+* Respecto al modelo con dos factores y parámetro de regularización óptimo se tiene que el error de validación `r ifelse(error_valida_MCA2>error_valida_MCA3,"disminuyó","aumentó")` pasando de `r error_valida_MCA2` a `r error_valida_MCA3`.

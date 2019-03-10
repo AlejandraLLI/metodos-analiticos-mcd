@@ -1,0 +1,206 @@
+---
+title: 'Tarea 6: Sistemas de Recomendación (parte 2, pregunta 7)'
+author: "Alejandra Lelo de Larrea Ibarra"
+date: "09/03/2019"
+output: 
+  html_document:
+    toc: TRUE
+    toc_depth: 3
+---
+
+### Pregunta 7 (opcional)
+
+```{r}
+# Cargamos librería
+library(tidyverse)
+library(gridExtra)
+
+# Función para calcular la raíz del error cuadrático medio. 
+recm <- function(calif, pred){
+  sqrt(mean((calif - pred)^2))
+}
+```
+
+
+#### Datos
+Usa el conjunto de datos más grande en la liga de arriba, si quieres
+obtener mejores resultados.
+
+```{r}
+# Leemos los datos
+movies <- read_csv("../datos/ml-latest-complete/movies.csv")
+ratings <- read_csv("../datos/ml-latest-complete/ratings.csv")
+
+```
+
+#### Datos de Validación y Entrenamiento
+
+```{r}
+nusers<-length(unique(ratings$userId))
+nusers
+
+# Fija la semilla
+set.seed(5512)
+
+# Selecciona aleatoriamente 300 usuarios de validación de los 610 disponibles
+user_id_valid <- ratings$userId %>% unique %>% sample(size = ceiling(0.5*nusers))
+length(user_id_valid)
+```
+
+```{r}
+# Selecciona 20% de evaluaciones.
+validacion <- ratings %>% # datos ratings
+  filter(userId %in% user_id_valid) %>% # extrae usuarios en validación
+  group_by(userId) %>% # agrupa por usuario
+  mutate(rank = rank(timestamp, ties.method = "random") / length(timestamp)) %>% # ordena observaciones
+  filter(rank >= 0.8) # se queda con el último 20% de la muestra
+
+# no de calificaciones en validación
+nrow(validacion)
+```  
+
+```{r}
+# Extrae los datos de entrenamiento
+entrena <- ratings %>% anti_join(validacion)
+
+# No de obs de entrenamiento
+nrow(entrena)
+```
+
+#### Cálculo de promedios
+
+```{r}
+# Calif promedio y no. de evaluaciones por película
+pelis_medias <- entrena %>% # datos entrenamiento
+  group_by(movieId) %>% # agrupa por película
+  summarise(media_peli = mean(rating), num_eval = length(rating)) # calcula calif. promedio y no de eval. 
+
+# Califiación promedio por usuario
+usuarios_medias <- entrena %>% # datos entrenamiento
+  group_by(userId) %>% # agrupa por usuario
+  summarise(media_usuario = mean(rating)) # calcula calif.promedio
+
+# Promedio general
+media_gral <- mean(entrena$rating)
+```
+
+#### Cálculo de Predicciones Base
+
+```{r}
+# Modelo de referencia para los datos de entrenamiento
+entrena_ref <- entrena %>% # datos de entrenamiento
+  ungroup %>% # desagrupa el id de usuario
+  left_join(pelis_medias) %>% # Agrega media de cada película
+  left_join(usuarios_medias) %>% # Agrega la media de cada usuario
+  mutate(pred = media_peli + (media_usuario - media_gral)) %>% # pred. modelo base.
+  mutate(pred = ifelse(is.na(pred), media_gral, pred)) %>% # asigna media general a los na's
+  mutate(rating_c = rating - pred) # calcula la diferencia de la calif con la predicción base
+
+
+# Obtiene las predicciones con el modelo de referencia para el conjunto de validación
+valida_ref <- validacion %>% # datos validación
+  ungroup %>% # desagurpa por id de usuario
+  left_join(pelis_medias) %>% # agrega media de peliculas
+  left_join(usuarios_medias) %>% # agrega media de usuarios
+  mutate(pred = media_peli + (media_usuario - media_gral)) %>% # pred. modelo base.
+  mutate(pred = ifelse(is.na(pred), media_gral, pred)) # asigna media general a los na's
+
+# Error de entrenamiento
+error_entrena_comp<-recm(entrena_ref$rating,entrena_ref$pred)
+error_entrena_comp
+# Error de validación
+error_valida_comp<-recm(valida_ref$rating,valida_ref$pred)
+error_valida_comp
+
+# write.csv(entrena_ref,"../datos/ml-latest-complete/entrena_ref.csv")
+# write.csv(valida_ref,"../datos/ml-latest-complete/valida_ref.csv")
+```
+
+#### Datos con ajuste por medias a Spark
+
+```{r}
+# # Cargamos la librería de spark
+# library(sparklyr)
+# 
+# 
+# # configuración para spark
+# config <- spark_config()
+# 
+# # Amplía la memoria. 
+# config$`sparklyr.shell.driver-memory` <- "8G"
+# 
+# # conectar con "cluster" local
+# sc <- spark_connect(master = "local", config = config)
+# 
+# # Hace un plan de cómo va a ejecutar las taras que se le piden. 
+# spark_set_checkpoint_dir(sc, './checkpoint')
+
+```
+
+```{r}
+# # Cargamos los datos de enternamiento con el modelo de referencia a spark
+# entrena_tbl <- spark_read_csv(sc=sc,name='entrena_ref',path="~/ma/metodos-analiticos-mcd/datos/ml-latest-complete/entrena_ref.csv")
+# 
+# # Cargamos los datos de validación con el modelo de referencia a spark
+# # valida_tbl <- copy_to(sc, valida_ref, overwrite = T)
+# entrena_tbl <- spark_read_csv(sc=sc,name='valida_ref',path="~/ma/metodos-analiticos-mcd/datos/ml-latest-complete/valida_ref.csv")
+```
+
+#### Parámetros optimos
+```{r}
+# params<-list(factores=2:4,
+#              lambda=seq(0.02,1,by=0.02))%>%
+#   expand.grid
+# 
+# params$error_valida<-apply(params,1,function(x){
+#   mod<-calcula_regparam(x[1])
+#   mod(x[2])
+# })
+# 
+# ggplot(params,aes(x=lambda,y=error_valida,group=as.factor(factores),color=as.factor(factores)))+
+#   geom_point()+
+#   geom_line()
+# 
+# params_star<-params[which.min(params$error_valida),]
+
+```
+
+
+```{r}
+# # Se corre el modelo con la lambda que genera el menor error de validación 
+# modelo4 <- ml_als(entrena_tbl,
+#                   rating_col = 'rating_c',
+#                   user_col = 'userId',
+#                   item_col = 'movieId',
+#                   rank = params_star[1],
+#                   reg_param = params_star[2],
+#                   checkpoint_interval = 5,
+#                   max_iter = 50)
+# 
+# 
+# # Calcula las predicciones para el conjunto de validación 
+# preds_valida4<- sdf_predict(valida_tbl, modelo4) %>% # predicciones para validación
+#   collect() %>% # las extrae a R.
+#   mutate(final_pred = pred + prediction)%>% # Suma el modelo base a las predicciones de desviaciones.
+#   mutate(final_pred = ifelse(is.na(final_pred), media_gral, final_pred)) # Asigna media general para aquellas que no tienen prediccion
+# 
+# 
+# # Calcula las predicciones para el conjunto de validación 
+# preds_entrena4 <- sdf_predict(entrena_tbl, modelo4) %>% # predicciones para entrenamiento
+#   collect() %>% # las extrae a R.
+#   mutate(final_pred = pred + prediction) # Suma el modelo base a laspredicciones de desviaciónes.
+# 
+# 
+# # Error de entrenamiento bajo MCA
+# error_entrena_MCA4<-recm(preds_entrena4$rating,preds_entrena4$final_pred)
+# error_entrena_MCA4
+# 
+# # Error de validación bajo MCA
+# error_valida_MCA4<-recm(preds_valida4$rating,preds_valida4$final_pred)
+# error_valida_MCA4
+```
+
+```{r}
+# Se desconecta de spark
+# sparklyr::spark_disconnect_all()
+```
