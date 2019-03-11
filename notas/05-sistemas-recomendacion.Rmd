@@ -1081,10 +1081,10 @@ Podemos proponer más dimensiones latentes de la siguiente forma:
 Tenemos la dimensión anterior de seria-divertida
 ```{r}
 # Define las películas por seria(+)/divertida(-)
-v1 <- c(-2,0,1)
+v_1 <- c(-2,0,1)
 
 # Define gusto de los usuarios por seria(+)/divertida(-)
-u1 <- c(2,3,-3,0,1)
+u_1 <- c(2,3,-3,0,1)
 ```
 En realidad, no puedo describir películas y gustos sólo con una dimensión. Entonces buscamos varias $u$'s y varias $v$'s de tal forma que las combinamos como una suma ponderada para obtener la predicción del score. 
 
