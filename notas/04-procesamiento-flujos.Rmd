@@ -1406,7 +1406,12 @@ df_tbl %>%
 
 ```
 
-## Tarea{-}
+
+```{r}
+spark_disconnect_all()
+```
+
+### Tarea{-}
 
 - Resuelve los dos ejercicios pendientes (uno en filtro de Bloom, otro en la sección de muestras uniformemente distribuidas.
 

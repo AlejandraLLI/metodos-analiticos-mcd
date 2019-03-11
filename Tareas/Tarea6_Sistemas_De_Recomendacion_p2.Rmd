@@ -258,7 +258,7 @@ error_valida<-recm(valida_ref$rating,valida_ref$pred)
 ```
 
 
-El error de entrenamiento es de `r error_entrena` y el error de validación es de `r error_valida`. El error de validación es un poco más grande que el de entrenamiento (diferencia de `r error_valida-error_entrena`). 
+El error de entrenamiento es de `r error_entrena` y el error de validación es de `r error_valida`. El error de validación es un poco más grande que el de entrenamiento (diferencia de `r error_valida-error_entrena`). Parte del gap se debe a que como estoy considerando observa 
 
 
 # Mínimos cuadrados alternados
