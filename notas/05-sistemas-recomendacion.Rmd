@@ -132,6 +132,7 @@ Lo que queremos ententer es cómo se desempeña nuestro sistema
 cuando tenemos cierta información de usuarios y de películas.
 ![](../Img_Validacion_Netflix.png)
 
+
 ### Ejemplo: datos de Netflix {-}
 
 
@@ -388,11 +389,6 @@ Y notamos que hay heterogeneidad en el uso de las calificaciones: unos usuarios 
 generalmente una componente de esta variabilidad se debe a cómo usa la escala cada usuario. En este sentido un 4 o un 3 no significa nada porque para algunos 4 es muy bueno pero para otros es muy malo.
 
 
-Y notamos que hay unos usuarios que tienen promedios por encima de $4.5$, mienstras que otros
-califican por debajo de $3$ en promedio. Aunque esto puede deberse a las películas que han visto,
-generalmente una componente de esta variabilidad se debe a cómo usa la escala cada usuario.
->>>>>>> 7c7b2b9d4b084fbf3c618dde3b9665d52eafb7d3
-
 En primer lugar, quizá uno podría pensar que un modelo base consiste de simplemente
 predecir el promedio de una película sobre todos los usuarios que la calificaron (sin incluir el sesgo de cada persona). Esto no funciona bien porque típicamente hay distintos patrones
 de uso de la escala de calificación, que depende más de forma de uso de escala que de la calidad de los items.
@@ -413,7 +409,7 @@ Lo primero que vamos a hacer para controlar esta fuente de variación es ajustar
 dependiendo del promedio de calificaciones de cada usuario.
 
 
-### (Opcional) Efectos en análisis de heterogeneidad en uso de escala.
+### (Opcional) Efectos en análisis de heterogeneidad en uso de escala
 
  Muchas veces se considera que tratar como numéricos a calificaciones en escala no es muy apropiado, y que el análisis no tiene por qué funcionar pues en realidad las calificaciones están en una escala ordinal. Sin embargo,
 
@@ -602,7 +598,7 @@ $$\hat{d}_j =\frac{1}{N_j}\sum_{s} x_{sj}- \hat{\mu}$$
 Una vez que observamos una calificación $x_{ij}$, el residual del modelo de referencia es
 $$r_{ij} = x_{ij} - \hat{x}_{ij}$$
 
-### Ejercicio: modelo de referencia para netflix {-}
+### Ejercicio: modelo de referencia para Netflix {-}
 
 Calculamos media de películas, usuarios y total:
 
@@ -659,7 +655,7 @@ en los que se usa una muestra de prueba separada, de películas vistas despúes 
 ### Ejercicio: regularización del modelo simple {-}
 
 No hemos resulto el problema de películas o usarios con pocas evaluaciones. Como vimos arriba,
-hay gran variablidad en los promedios de las películas con pocas evaluaciones, y esto produce
+hay gran variabilidad en los promedios de las películas con pocas evaluaciones, y esto produce
 error adicional en nuestras predicciones.
 
 ```{r}
@@ -835,11 +831,12 @@ sim_cos(mat.c[,1], mat.c[,6])
 
 
 **Observación**:
+
 - Hacer este supuesto de valores $0$ cuando no tenemos evaluación no es lo mejor, pero 
 como centramos por usuario tiene más sentido hacerlo. Si utilizaramos las calificaciones
 no centradas, entonces estaríamos suponiendo que las no evaluadas están calificadas muy mal ($0$, por abajo de $1$,$2$,$3$,$4$,$5$).
-- Si calculamos similitud entre *usuarios* de esta forma, las distancia coseno es simplemente el coeficiente de correlación. Nótese que estamos
-calculando similitud entre *items*, centrando por usuario, y esto no
+
+- Si calculamos similitud entre *usuarios* de esta forma, las distancia coseno es simplemente el coeficiente de correlación. Nótese que estamos calculando similitud entre *items*, centrando por usuario, y esto no
 es lo mismo que correlación entre columnas.
 
 
@@ -863,10 +860,9 @@ filter(pelis_nombres, str_detect(nombre,'Gremlins'))
 # Busca la película "When Harry Met Sally"" para extraer el id
 filter(pelis_nombres, str_detect(nombre,'Harry Met'))
 
-# Extre las calificaciones de cada una de las películas de interés 
-dat_1 <- filter(dat_entrena_c, peli_id==6482) # "gremlins 1"
-dat_2 <- filter(dat_entrena_c, peli_id==2897) # "gremlins 2"
-dat_3 <- filter(dat_entrena_c, peli_id==2660) # "When Harry met Sally"
+dat_1 <- filter(dat_entrena_c, peli_id==2897) # Gremlins 2
+dat_2 <- filter(dat_entrena_c, peli_id==6482) # Gremlins 1
+dat_3 <- filter(dat_entrena_c, peli_id==2660) # WHMS
 ```
 
 Juntamos usuarios que calificaron cada par:
@@ -886,12 +882,12 @@ Y ahora graficamos.
 # Grafica las calificaciones centradas de gremlins 1 y 2 
 ggplot(comunes, aes(x=calif_c, y=calif_c_2)) + 
   geom_jitter(width = 0.2, height = 0.2, alpha = 0.5) + 
-  geom_smooth() + xlab('Gremlins 1') + ylab('Gremlins 2')
+  geom_smooth() + xlab('Gremlins 2') + ylab('Gremlins 1')
 
 # Grafica las calificaciones centradas de gremlins 1 y WHMS
 ggplot(comunes_2, aes(x=calif_c, y=calif_c_2))  + 
   geom_jitter(width = 0.2, height = 0.2, alpha = 0.5) + 
-  geom_smooth() + xlab('Gremlins 1') + ylab('When Harry met Sally')
+  geom_smooth() + xlab('Gremlins 2') + ylab('When Harry met Sally')
 ```
 
 Se puede ver que hay una asociación positiva entre Gremlins 1 y Gremlins 2 pero que no hay relación entre Gremlins 1 y When Harry Met Sally. 
@@ -909,7 +905,7 @@ sim_cos(comunes$calif_c, comunes$calif_c_2)
 sim_cos(comunes_2$calif_c, comunes_2$calif_c_2)
 ```
 
-Así que las dos Gremlins son algo similares, pero Gremlins $2$ y Harry Met Sally no son similares.
+Así que las dos Gremlins son algo similares, pero Gremlins $1$ y Harry Met Sally no son similares.
 
 ---
 
@@ -1027,22 +1023,24 @@ de dimensión).
 
 
 
+
 ### Ejemplo: una dimensión latente.{#ejemplo}
+
 Por ejemplo: consideramos una dimensión de películas serias (valores positivos) contra películas divertidas (valores negativos).
-3 películas (items) podrían describirse con
+$3$ películas (items) podrían describirse con
 
 $$v=(-2,0,1)$$,
 
-lo que interpretamos como la película 1 es divertida (negativa en seriedad-diversión), la película 2 está en promedio, y la película 3 es más seria que las dos anteriores.
+lo que interpretamos como la película $1$ es divertida (negativa en seriedad-diversión), la película $2$ está en promedio, y la película $3$ es más seria que las dos anteriores.
  
 Por otro lado, tenemos descriptores de 5 usuarios:
 
 $$u=(2,3,-3,0,1)$$
 que dice que a los primeros dos usuarios les gustan las películas serias, al tercero le gustan las divertidas, y los dos últimos no tienen preferencia clara a lo largo de esta dimensión.
 
-Qusiéramos predecir el gusto usando estos dos vectores. Nuestras predicciones (considerando que u y v son matrices de una columna) serían simplemente
+Qusiéramos predecir el gusto usando estos dos vectores. Nuestras predicciones (considerando que $u$ y $v$ son matrices de una columna) serían simplemente
 
-$$\tilde{X} = u v^t$$
+$$\widetilde{X} = u v^t$$
 
 Es decir, modelamos la calificación multiplicando el nivel de gusto por la seriedad del usuario y el nivel de seriedad de cada película. 
 
@@ -1064,13 +1062,14 @@ gustos <- u%*%t(v)
 gustos
 ```
 
+
 Esta matriz es la matriz de scores para cada persona sobre cada una de las películas en la lista. Recomendamos a cada usuario la película con mayor calificación. 
-Así que al usuario 1 le recomendamos la película 3, pero al usuario 3 le recomendamos la película 1.
+Así que al usuario $1$ le recomendamos la película $3$, pero al usuario $3$ le recomendamos la película $1$.
 
 ---
 
 La idea es entonces encontrar pesos para películas $u$ y para usuarios $v$ de forma que
-$X\approx \tilde{X} = uv^t$: podemos reproducir las calificaciones observadas a partir de nuestro modelo de factores latentes.
+$X\approx \widetilde{X} = uv^t$: podemos reproducir las calificaciones observadas a partir de nuestro modelo de factores latentes.
 
 Nótese sin embargo que hay varias dimensiones que pueden describir a películas y usuarios:
 por ejemplo, seria-divertida, artística-hollywood, ciencia ficción, con/sin violencia, etc. 
@@ -1097,9 +1096,10 @@ v_2 <- c(-3,2,2)
 u_2 <- c(-3,-3,0,-2,4)
 ```
 
-Que quiere decir que las películas $2$ y $3$ tienen volencia, pero la película $1$ no. Por otra parte, a los usuarios 1,2 y 5 no les gustan las películas con violencia, mientras que al usuario 5 si les gustan.
 
-La idea ahora es que el gusto de una persona por una película se escribe como combinación de las dos dimensiones. Por ejemplo, para la persona 1 tenemos, y la película 1, empezamos haciendo
+Que quiere decir que las películas $2$ y $3$ tienen volencia, pero la película $1$ no. Por otra parte, a los usuarios $1$, $2$ y $5$ no les gustan las películas con violencia, mientras que al usuario $5$ si les gustan.
+
+La idea ahora es que el gusto de una persona por una película se escribe como combinación de las dos dimensiones. Por ejemplo, para la persona $1$ tenemos, y la película $1$, empezamos haciendo
 
 ```{r}
 # Gusto del usuario uno por la película 1 bajo la dimensión 1
@@ -1109,7 +1109,7 @@ u_1[1]*v_1[1]
 u_2[1]*v_2[1]
 ```
 
-lo que quiere decir que el hecho de que la película 1 no sea seria le resta 4 en gusto (pues la película 1 está del lado "divertido"), pero le suma 9 en gusto, pues es una película sin violencia y esta persona está del lado "sin violencia".
+lo que quiere decir que el hecho de que la película $1$ no sea seria le resta $4$ en gusto (pues la película $1$ está del lado "divertido"), pero le suma $9$ en gusto, pues es una película sin violencia y esta persona está del lado "sin violencia".
 
 Sumamos para encontrar el gusto total, es decir $x\sim u_1v_1'+u_2v_2'$. 
 
@@ -1158,15 +1158,17 @@ U %*% t(V)
 ```{block2, type ="resumen"}
 Con $k$ dimensiones latentes, el modelo que proponemos es:
 
-$$\tilde{X} = UV^t$$
+$$\widetilde{X} = UV^t$$
 
-donde $U$ es una matrix de $nxk$ (n= número de usuarios), y $V$ es una matriz
-de $pxk$, donde $p$ es el número de películas.
+donde $U$ es una matrix de $n\times k$ ($n=$ número de usuarios), y $V$ es una matriz
+de $p \times k$, donde $p$ es el número de películas.
 
 Buscamos que, si $X$ son las verdaderas calificaciones, entonces
-$$X\approx \tilde{X}.$$
+$$X\approx \widetilde{X}.$$
 
-y nótese que esta aproximación es en el sentido de las entradas de $X$ que **son observadas**. Sin embargo, $\tilde{X}$ nos da predicciones para **todos los pares usuario-película**.
+
+y nótese que esta aproximación es en el sentido de las entradas de $X$ que **son observadas**. Sin embargo, $\widetilde{X}$ nos da predicciones para **todos los pares usuario-película**.
+
 ```
 
 Notar que $X$ es una matriz rala, pero $\tilde{X}$ es una matriz densa (siempre puedo tener una estimación de la calificación de cada usuario para cada película). 
@@ -1178,16 +1180,17 @@ Si quisieramos tener una suma ponderada, entonces estimaríamos las calificacion
 Bajo este modelo, la predicción para el usuario $i$ y la película $j$
 es la siguiente suma sobre las dimensiones latentes:
 
-$$\tilde{x}_{ij} =\sum_k u_{ik} v_{jk}$$
+$$\widetilde{x}_{ij} =\sum_k u_{ik} v_{jk}$$
 
 que expresa el hecho de que el gusto de $i$ por $j$ depende de una combinación (suma)
 de factores latentes de películas ponderados por gusto por esos factores del usuario.
 
 
+
 El número de factores latentes $k$ debe ser seleccionado por ejemplo, según el error de validación. Dado $k$, para encontrar $U$ y $V$ (un total de $k(n+p)$ parámetros) buscamos
 minimizar 
 
-$$\sum_{(i,j)\, obs} (x_{ij}-\tilde{x}_{ij})^2,$$
+$$\sum_{(i,j)\, obs} (x_{ij}-\widetilde{x}_{ij})^2,$$
 
 
 que también podemos escribir este problema (recuérdese que $u_i$ y
@@ -1214,7 +1217,7 @@ esperamos encontrar en el proceso de ajuste).
 
 
 Por ejemplo, supongamos que el gusto por las películas sólo depende de
-una dimensión seria - divertida. Si ajustamos un modelo de un solo
+una dimensión sería - divertida. Si ajustamos un modelo de un solo
 factor latente, un **mínimo** se alcanzaría separando con la dimensión latente
 las películas serias de las divertidas, y los usuarios que prefieren películas
 serias o divertidas. Esta sería una buena explicación de los datos observados,
@@ -1230,14 +1233,14 @@ Podemos usar también ideas de nuestro modelo base y modelar desviaciones en lug
 Si $X^0$ son las predicciones del modelo de referencia, y
 $$R = X-X^0$$
 son los residuales del modelo base, buscamos mejor
-$$R\approx \tilde{X} = UV^t$$
+$$R\approx \widetilde{X} = UV^t$$
 de manera que las predicciones finales son
-$$X^0 + \tilde{X}$$
+$$X^0 + \widetilde{X}$$
 
 Veremos también más adelante cómo regularizar estos sesgos como
 parte de la construcción del modelo.
 
-## Factorización de matrices.
+## Factorización de matrices
 
 Como vimos arriba, reexpresamos nuestro problema como un problema
 de factorización de matrices  (encontrar $U$ y $V$). Hay varias alternativas populares para atacarlo:
@@ -1247,14 +1250,14 @@ de factorización de matrices  (encontrar $U$ y $V$). Hay varias alternativas po
 - Descenso en gradiente estocástico.
 
 Para entender más del primer enfoque, puedes consultar por ejemplo
-las notas del curso de aprendizaje de máquina <https://felipegonzalez.github.io/aprendizaje-maquina-2017/reduccion-de-dimensionalidad.html>. No vamos a ver más de este enfoque, pues no
+las notas del curso de aprendizaje de máquina <https://github.com/felipegonzalez/aprendizaje-maquina-mcd/blob/master/14-reducir-dimensionalidad.Rmd>. No vamos a ver más de este enfoque, pues no
 es del todo apropiado: nuestras matrices tienen muchos datos faltantes, y SVD naturalmente no está diseñado para lidiar con este problema. Se pueden hacer ciertas imputaciones (por ejemplo, insertar 0's una vez que centramos por usuario), pero los siguientes dos métodos están mejor adaptados para
 nuestro problema.
 
-## Mínimos cuadrados alternados.
+## Mínimos cuadrados alternados
 
-Supongamos entonces que queremos encontrar matrices $U$ y $V$, donde $U$ es una matrix de $nxk$ (n= número de usuarios), y $V$ es una matriz
-de $pxk$, donde $p$ es el número de películas que nos de una
+Supongamos entonces que queremos encontrar matrices $U$ y $V$, donde $U$ es una matrix de $n \times k$ ($n=$ número de usuarios), y $V$ es una matriz
+de $p \times k$, donde $p$ es el número de películas que nos de una
 aproximación de la matrix $X$ de calificaciones
 $$
 X \approx UV^t
@@ -1349,7 +1352,7 @@ valida_tbl <- copy_to(sc, dat_valida %>% select(-fecha))
 entrena_tbl <- dat_tbl %>% anti_join(valida_tbl) 
 ```
 
-Vamos a hacer primero una descomposición en 15 factores,
+Vamos a hacer primero una descomposición en $15$ factores,
 con regularización relativamente alta:
 
 ```{r als-spark}
@@ -1540,7 +1543,7 @@ y los renglones de $V$ son los descriptores de las películas (ver sección ante
 \begin{equation}
 \min_{U,V} \sum_{(i,j) obs} (x_{ij} - u_iv_j^t)^2
 \end{equation}
-donde $u_i$ es el renglón $i-ésimo$ de $U$ y $v_j$ es el renglón
+donde $u_i$ es el renglón $i$-ésimo de $U$ y $v_j$ es el renglón
 $j$-ésimo de $V$. En términos de sus componentes, queremos minimizar
 
 \begin{equation}
@@ -1559,7 +1562,9 @@ y
 $$\frac{\partial L_{i,j}}{\partial v_{j,t}} = -2e_{i,j} u_{i,t}
 $$
 
+
 El resto de las derivadas son iguales a 0 $\left(\text{para otros} u_a^{(m)}, v_b^{(m)}\right)$. Esto nos da la dirección del gradiente en cada paso del descenso estocástico. 
+
 
 ```{block2, type = 'comentario'}
 Sea $\gamma >0$ el tamaño de paso (tasa de aprendizaje) de descenso estocástico.
@@ -1594,7 +1599,7 @@ $$
 $$\frac{\partial L_{i,j}}{\partial b_j} = -2e_{i,j} 
 $$
 
-y el resto de las derivadas (para otras $a_s$ y $b_t$) son iguales a 0.
+y el resto de las derivadas (para otras $a_s$ y $b_t$) son iguales a $0$.
 
 
 ```{block2, type='resumen'}
@@ -1664,7 +1669,7 @@ un factor constante).
 - Este es un tipo de regularización distinto al que usamos en el ejemplo
 de mínimos cuadrados alternados.
 
-### Ejemplo (netflix)
+### Ejemplo (Netflix)
 Usaremos una  implementación en C++ para tener mejor desempeño 
 (una introducción a extensiones de C++ para R está en 
 [@advanced-r]).
@@ -1943,10 +1948,10 @@ Las calificaciones para las películas con menor numero de calificaciones están
 
 
 Para tener desempeño equivalente los ganadores del concurso de Netflix
-([@Bellkor]),
+[@Bellkor],
 todavía faltan algunos elementos:
 
-- A partir de 2004, hubo mejoras a la interfaz de Netflix. Esto provocó
+- A partir de $2004$, hubo mejoras a la interfaz de Netflix. Esto provocó
 un incremento general en las calificaciones. Este es un factor (el tiempo),
 que es necesario incluir en el modelo como término adicional (si la calificación
 es antes o después del cambio).
@@ -1973,8 +1978,7 @@ los catálogos).
 
 ```{r, fig.width = 6, fig.asp=0.7}
 # Gráfica de calificaciones promedio para películas con más de 1000 eval
-ggplot(filter(medias_pelis, num_calif_peli > 1000), 
-       aes(x = año, y = media_peli)) + 
+ggplot(filter(medias_pelis, num_calif_peli > 1000), aes(x = año, y = media_peli)) + 
   geom_point(alpha=0.4) + geom_smooth(method = 'loess',  span=0.4)+
   xlab('Año')+
   ylab('Calificación Promedio por Película')
@@ -1991,8 +1995,8 @@ y otros (ver por ejemplo [este artículo](https://amba-bigdata.wikispaces.com/fi
 Esta sección está basada en [@recomendacion-implicita].
 
 En el ejemplo que vimos arriba, la retroalimentación es expícita en el 
-sentido de que los usuarios califican los artículos (1- no me gustó nada,
-hasta 5- me gustó mucho). Sin embargo, es común encontrar casos
+sentido de que los usuarios califican los artículos ($1-$ no me gustó nada,
+hasta $5-$ me gustó mucho). Sin embargo, es común encontrar casos
 donde no existe esta retroalimentación explícita, y solo tenemos medidas
 del gusto implícito, por ejemplo:
 
@@ -2005,8 +2009,8 @@ Estos datos tienen la ventaja de que describen acciones del usuario,
 en lugar de un rating que puede estar influido por sesgos de imagen
 o de la calificación que "debería" tener un artículo además 
 de la preferencia: quizá
-disfruto muchísimo *Buffy the Vampire Slayer*, pero lo califico con un 3,
-aunque un documental de ballenas que simplemente me gustó le pongo un 5.
+disfruto muchísimo *Buffy the Vampire Slayer*, pero lo califico con un $3$,
+aunque un documental de ballenas que simplemente me gustó le pongo un $5$.
 En los datos implícitos se vería de todas formas mi consumo frecuente
 de *Buffy the Vampire Slayer*, y quizá unos cuantos de documentales 
 famosos.
@@ -2038,15 +2042,15 @@ la variable de preferencia
 
 $$p_{ij} = 
 \begin{cases}
-1 &\mbox{si } r_{ij}>0\\ 
-0 &\mbox{si } r_{ij}=0\\
+1, &\mbox{si } r_{ij}>0,\\ 
+0, &\mbox{si } r_{ij}=0.\\
 \end{cases}$$
 
 Esta variable $p_{ij}$, cuando vale uno, indica algún nivel de preferencia.
 ¿Pero qué tanto valor debemos darle a esta preferencia? Definimos la confianza
 como
 $$c_{ij} = 1+ \alpha r_{ui},$$
-donde $\alpha$ es un parámetro que hay que afinar (por ejemplo $\alpha$ entre 1 y 50). Para predicciones de vistas de TV, en [@recomendacion-implicita] utilizan
+donde $\alpha$ es un parámetro que hay que afinar (por ejemplo $\alpha$ entre $1$ y $50$). Para predicciones de vistas de TV, en [@recomendacion-implicita] utilizan
 $\alpha = 40$, donde $r_{ij}$ es el número de veces que el usuario ha visto
 un programa (contando vistas parciales, así que es un número real).
 
@@ -2098,14 +2102,14 @@ que es lo mismo que la ecuación anterior pero ponderando por el interés mostra
 en cada artículo con $p_{ij}=1$.
 
 - Menores valores de $rank$ son mejores.
-- Si escogemos al azar el ordenamiento de los artículos, el valor esperado de $rank_{ij}$ es 0.5 (en medio de la lista), lo que implica que el valor esperado
-de $rank$ es 0.50. Cualquier modelo con $rank\geq 0.5$ es peor que dar recomendaciones al azar.
+- Si escogemos al azar el ordenamiento de los artículos, el valor esperado de $rank_{ij}$ es $0.5$ (en medio de la lista), lo que implica que el valor esperado
+de $rank$ es $0.50$. Cualquier modelo con $rank\geq 0.5$ es peor que dar recomendaciones al azar.
 
 Esta cantidad la podemos evaluar en entrenamiento y en validación. Para construir
 el conjunto de validación podemos hacer:
 
-- Escogemos un número de usuarios para validación (por ejemplo 20\%)
-- Ponemos 50\% de los artículos evaluados por estas personas en validación, por ejemplo.
+- Escogemos un número de usuarios para validación (por ejemplo $20\%$)
+- Ponemos $50\%$ de los artículos evaluados por estas personas en validación, por ejemplo.
 
 Estas cantidades dependen de cuántos datos tengamos, como siempre, para tener
 un tamaño razonable de datos de validación.

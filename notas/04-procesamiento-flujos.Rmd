@@ -23,7 +23,7 @@ Para analizar flujos con estas propiedades podemos hacer:
 Dependiendo de qué nos interesa medir en un flujo podemos decidir cuáles
 son las unidades que es necesario muestrear. Típicamente la unidad de un
 flujo no corresponde a las unidades que nos interesan. Por ejemplo: en *logs*
-de sitios web, las unidades observamos en el flujo son transacciones muy granulares (clicks, movimientos de mouse, envío de datos, etc.), pero nos interesa obtener
+de sitios web, las unidades que observamos en el flujo son transacciones muy granulares (clicks, movimientos de mouse, envío de datos, etc.), pero nos interesa obtener
 propiedades a nivel de usuario, o sesión, etc.
 
 Dependiendo de las unidades de muestreo apropiadas que nos
@@ -899,10 +899,7 @@ n_0 <- 1000
 # Fijar semilla
 set.seed(103)
 
-# # ???
-# lambda <- 10*abs(sin(1:N/200))
-
-# Simulación del flujo: acumulada de normales. 
+# Simulación del flujo: acumulada de normales.
 datos <- data_frame(n = 1:N, res = rnorm(N)) %>% mutate(obs = cumsum(res))
 
 # Grafica los flujos históricos (menores a n0)
@@ -995,7 +992,7 @@ cada elemento nuevo del flujo, decidir si es nuevo, agregarlo a la estructura,
 y contar. Sin embargo, si el número de elementos distintos es grande, esta
 estrategia puede requierir mucha memoria y procesamiento. Un filtro de bloom 
 no es del todo adecuado, pues confrome vayamos
-llenando de 1´s el su vector, la tasa de falsos positivos irá incrementando (en el 
+llenando de 1´s el vector, la tasa de falsos positivos irá incrementando (en el 
 límite es 1).
 
 Una alternativa es usar algoritmos probabilísticos, que utilicen mucha menos
@@ -1238,7 +1235,7 @@ a valores grandes y atípicos, igual que la media geométrica).
 - Intuitivamente, cuando dividimos en $m$ cubetas un flujo de $n$ elementos, cada flujo
 tiene aproximadamente $n/m$ elementos. Como vimos arriba, lo más probable
 es que la cola máxima en cada cubeta sea aproximadamente $\log_2(n/m)$. El promedio
-armónico $a$ de $m$ cantidades $(n/m)$ de esta cantidad entonces debería estar ser
+armónico $a$ de $m$ cantidades $(n/m)$ de esta cantidad entonces debería ser
 del orden en $n/m$, así que la estimación final de la cardinalidad del flujo
 completo es $ma$ (el número de cubetas multiplicado por el promedio armónico). 
 - Existen varias correcciones adicionales para mejorar su error en distintas circunstancias (dependiendo del número de elemntos únicos que estamos contando, por ejemplo). Una típica

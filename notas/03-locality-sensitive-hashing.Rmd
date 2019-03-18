@@ -47,8 +47,8 @@ particular es $s$, la similitud de Jaccard.
 2. La probabiliad de que todos los hashes de una banda coincidan es
 $s^r$, pues seleccionamos los hashes independientemente. 
 3. Así que la probabilidad de que los documentos no coincidan en una banda
-particular es:
-$1-s^r$
+particular es: $1-s^r$
+
 4. Esto implica que la probabilidad de que los documentos no coincidan en ninguna banda es $(1-s^r)^b$.
 5. Finalmente, la probabilidad de que estos dos documentos sean un par candidato es $1-(1-s^r)^b$, que es la probabilidad de que coincidan en al menos una banda.
 
@@ -209,7 +209,9 @@ params_umbral <- function(num_hashes, umbral_inf = 0.0, umbral_sup = 1.0){
 }
 
 combinaciones_50 <- params_umbral(50, 0.4, 0.7)
+
 combinaciones_50
+
 graficar_curvas(combinaciones_50) + 
   geom_vline(xintercept = 0.4, lty=2) + 
    geom_vline(xintercept = 0.7, lty=2) 
@@ -222,10 +224,12 @@ Con $200$ hashes podemos obtener curvas con mayor pendiente:
 
 ```{r, fig.width=5, fig.asp=0.6}
 combinaciones_200 <- params_umbral(200, 0.2, 0.8)
+
 combinaciones_200
 graficar_curvas(combinaciones_200) + 
   geom_vline(xintercept = 0.2, lty=2) + 
    geom_vline(xintercept = 0.8, lty=2) 
+
 ```
 
 **Observación**: La decisión de los valores para estos parámetros
@@ -283,7 +287,8 @@ En este ejemplo intentamos encontrar artículos similares de [wikipedia](http://
 usaremos categorías a las que pertenecen. Dos artículos tienen similitud alta cuando los conjuntos de categorías a las que pertenecen es similar.
 (este el [ejemplo original](https://github.com/elmer-garduno/metodos-analiticos/blob/master/Lecture_2_Similarity_Spark.ipynb)).
 
-Empezamos con una muestra de los , vienen en el formato (artículo,categoría):
+
+Empezamos con una muestra de los datos, vienen en el formato (artículo,categoría):
 
 ```{r, engine='bash'}
 # muestra los 20 primeros datos del txt
