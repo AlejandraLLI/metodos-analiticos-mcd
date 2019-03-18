@@ -1,0 +1,187 @@
+---
+title: 'Tarea 7: Pagerank Análisis de Redes (parte 1)'
+author: "Alejandra Lelo de Larrea Ibarra"
+date: "16/03/2019"
+output: 
+  html_document:
+    toc: TRUE
+    toc_depth: 3
+---
+
+# Datos 
+Del paquete *igraph* seleccionamos el set de datos macaque. Estos datos consisten de un modelo de grafos para las áreas visotáctiles y conexiones del cerebro del mono macaco. El modelo consta de 45 áreas y 463 conexiones dirigidas.
+
+```{r}
+# Cargamos librerías
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(igraphdata)
+
+# Cargamos los datos 
+data("macaque")
+
+# Extraemos componentes 
+componentes <- igraph::decompose(macaque)
+componente_grande <- componentes[[1]]
+
+# Estructura de red y medidas de importancia 
+mono_macaque <- componente_grande %>% #nodos 
+  as_tbl_graph() %>% # convierte a tbl_graph
+  activate(edges) %>% # activa aristas 
+  mutate(weights = 1) %>% # pone el mismo peso para todos los nodos 
+  activate(nodes) %>%  # activa los nodos 
+  mutate(imp_Betweeness = centrality_betweenness(), # medidas de centralidad
+         imp_Closeness = centrality_closeness(),
+         imp_Eigenvec = centrality_eigen())
+
+# Imprime red 
+mono_macaque
+```
+
+# ¿Cuáles son los nodos más importantes?
+
+Considera betweeness, closeness, centralidad de eigenvector.
+ 
+## Betweeness 
+
+```{r}
+# Ordena por importancia betweeness
+nodos_imp<- mono_macaque %>% # datos 
+  activate(nodes) %>% # acitva nodos 
+  as_tibble() %>% # convierte a tibble
+  select(shape,name,imp_Betweeness)%>% # selecciona variables
+  arrange(desc(imp_Betweeness)) # ordena por betweeness
+
+nodos_imp 
+
+# Barplot de la importancia betweeness
+qplot(pull(nodos_imp, imp_Betweeness),bins=50)
+```
+
+## Closeness 
+
+```{r}
+# Ordena por importancia closeness 
+nodos_imp<-mono_macaque %>% # datos 
+  activate(nodes) %>% # acitva nodos 
+  as_tibble() %>% # convierte a tibble
+  select(shape,name,imp_Closeness)%>% # selecciona variables
+  arrange(desc(imp_Closeness)) # ordena por closeness
+
+nodos_imp 
+
+# Barplot de la importancia closeness
+qplot(pull(nodos_imp, imp_Closeness),bins=50)
+```
+
+## Eigenvector  
+```{r}
+# Ordena por importancia eigenvector 
+nodos_imp<-mono_macaque %>% # datos 
+  activate(nodes) %>% # acitva nodos 
+  as_tibble() %>% # convierte a tibble
+  select(shape,name,imp_Eigenvec)%>% # selecciona variables
+  arrange(desc(imp_Eigenvec)) # ordena por eigenvector
+
+nodos_imp
+
+# Barplot de la importancia eigenvector
+qplot(pull(nodos_imp, imp_Eigenvec),bins=50)
+```
+ 
+# Grafica de la Red
+
+Grafica (ggraph o visNetwork) usando un algoritmo de fuerza y mostrando con tamaño y/o color las importancias. Si tu gráfica es muy grande puedes exportar a *gml* para utilizar Gephi (ver notas).
+
+
+## Betweeness
+```{r, fig.width = 12, fig.height = 12}
+ggraph(mono_macaque, layout = 'nicely') +
+  geom_edge_link(alpha=0.2) +
+  geom_node_point(aes(size = imp_Betweeness, colour = imp_Betweeness)) +
+  geom_node_text(aes(label = name), nudge_y = 0.1, size=5) +
+  theme_graph(base_family = 'sans')+
+  ggtitle("Importancia por Betweeness")+
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+
+
+## Closeness
+```{r, fig.width = 12, fig.height = 12}
+ggraph(mono_macaque, layout = 'nicely') +
+  geom_edge_link(alpha=0.2) +
+  geom_node_point(aes(size = imp_Closeness, colour = imp_Closeness)) +
+  geom_node_text(aes(label = name), nudge_y = 0.1, size=5) +
+  theme_graph(base_family = 'sans')+
+  ggtitle("Importancia por Closeness")+
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+## Eigenvectores
+```{r, fig.width = 12, fig.height = 12}
+ggraph(mono_macaque, layout = 'nicely') +
+  geom_edge_link(alpha=0.2) +
+  geom_node_point(aes(size = imp_Eigenvec, colour = imp_Eigenvec)) +
+  geom_node_text(aes(label = name), nudge_y = 0.1, size=5) +
+  theme_graph(base_family = 'sans')+
+  ggtitle("Importancia por Eigenvectores")+
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+
+## Combinando medidas 
+```{r}
+ggraph(mono_macaque, layout = 'nicely') +
+  geom_edge_link(alpha=0.2) +
+  geom_node_point(aes(size = imp_Betweeness, colour = imp_Eigenvec)) +
+  geom_node_text(aes(label = name), nudge_y = 0.2, size=3) +
+  theme_graph(base_family = 'sans')+
+  ggtitle("Importancia por Betweeness y Eigenvectores")+
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+```{r}
+ggraph(mono_macaque, layout = 'nicely') +
+  geom_edge_link(alpha=0.2) +
+  geom_node_point(aes(size = imp_Betweeness, colour = imp_Closeness)) +
+  geom_node_text(aes(label = name), nudge_y = 0.2, size=3) +
+  theme_graph(base_family = 'sans')+
+  ggtitle("Importancia por Betweeness y Closeness")+
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+```{r}
+ggraph(mono_macaque, layout = 'nicely') +
+  geom_edge_link(alpha=0.2) +
+  geom_node_point(aes(size = imp_Eigenvec, colour = imp_Closeness)) +
+  geom_node_text(aes(label = name), nudge_y = 0.2, size=3) +
+  theme_graph(base_family = 'sans')+
+  ggtitle("Importancia por Eigenvector y Closeness")+
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+
+```{r,eval=FALSE}
+library(visNetwork)
+
+edges<-mono_macaque%>%activate(edges)%>%as_data_frame
+nodes<-mono_macaque%>%activate(nodes)%>%as_data_frame
+
+nodos<-sort(union(unique(nodes$from),unique(nodes$to)))
+
+set.seed(3464)
+
+red_vis<-visNetwork(nodes=data_frame(id=1:length(nodos),label=nodos),edges,width="100%")%>%
+  visEdges(arrows = 'to', smooth =T)  %>%
+  visPhysics(solver="forceAtlas2Based",
+             forceAtlas2Based = list(gravitationalConstant=-50, 
+                                     centralGravity=0.01,
+                                     springLength=100,
+                                     springConstant=0.08, 
+                                     avoidOverlap=1))
+
+red_vis
+```
+

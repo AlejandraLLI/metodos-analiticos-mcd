@@ -11,7 +11,7 @@ de nuestra búsqueda, y después los resultados se ordenan según el pagerank
 de estas páginas filtradas.
 - ¿Qué problema resuelve? En un principio, se usaron métodos como índices y recuperación de documentos usando técnicas como tf-idf. El problema es que es muy fácil que un *spammer* sesgue los resultados para que sus páginas tengan alto nivel de relevancia en este sentido. Así que la importancia no se juzga sólo con el contenido,  sino de los *votos* de otras páginas importantes. Este es un sistema más difícil de engañar.
 
-- Es crucial usar la importancia de los *in-links* de una página: si no, sería tambíen fácil crear muchas páginas spam que apunten a otra dada para aumentar
+- Es crucial usar la importancia de los *in-links* de una página; si no, sería tambíen fácil crear muchas páginas spam que apunten a otra dada para aumentar
 su importancia.
 
 El *Pagerank*, más en general, es una medida de *centralidad* o *importancia* de los nodos de una red dirigida. Comenzaremos considerando redes más variadas (por ejemplo, redes sociales) y el concepto general de *centralidad*.
@@ -34,6 +34,9 @@ o la de *seguidor*.  Importancia: número de amigos o seguidores (grado de entra
 
 ![Pulp fiction](./imagenes/pulpfiction.png)
 
+Notar que Vincent, Butch y Jules son los  personajes más importantes de la película (son los nodos más grandes), pero son importantes  por distintas razones como veremos más adelante. Las aristas tienen distinto grosor, lo que indica que la red es una red ponderada de las importancias. 
+
+
 (Gráfica creada con *Gephi*).
 
 ## Tipos de redes y su representación
@@ -49,45 +52,70 @@ es con una lista de pares de *vértices* o *nodos*
 que están conectados por una *arista*. Por ejemplo, para una red dirigida:
 
 ```{r, fig.width=4, fig.asp=0.7, message = FALSE, warning = FALSE}
+# Carga librerías
 library(tidyverse)
 library(tidygraph)
 library(ggraph)
+
+# Matriz de nodos conectados por un arista
 aristas <- tibble(from = c(1, 1, 1, 1, 2), 
                       to =   c(2, 3, 4, 5, 3))
+
+# Muestra la red
 aristas
 ```
 
 ```{r}
+# Convierte a formato tbl_graph usando una red dirigida.
 red_tbl <- tidygraph::as_tbl_graph(aristas, directed = TRUE)
 red_tbl
 ```
 
-Que podemos visualizar como sigue:
+El formato `tbl_graph` permite visualizar la red dirigida como un conjunto de nodos (`Node Data`) e infromación de las aristas `Edge Data`. Esta red la podemos visualizar como sigue:
 
 ```{r, fig.width = 6, fig.asp = 0.7}
+# Función para graficar una red dirigida
 graficar_red_dirigida <- function(red_tbl){
+  
+  # Base
   ggraph(red_tbl) + 
-    geom_edge_link(arrow = arrow(), end_cap = circle(4, 'mm')) +
-    geom_node_point(size = 10, colour = 'salmon') +
-    geom_node_text(aes(label = name)) +
-    theme_graph() + coord_fixed()
+    geom_edge_link(arrow = arrow(), end_cap = circle(4, 'mm')) + # aristas
+    geom_node_point(size = 10, colour = 'salmon') + # nodos
+    geom_node_text(aes(label = name)) + # texto nodos
+    theme_graph() + coord_fixed() # ajuste de template y coordenadas
+  
 }
+
+# Grafica la red anterior
 graficar_red_dirigida(red_tbl)
 ```
 
 También es posible representar una red mediante una **matriz de adyacencia**. 
 
 La matriz de adyacencia para una red es la matriz $A$ tal que
-$$A_{ij} = 1$$
-si existe una arista de $i$ a $j$. En el caso no dirigido, $A$ es una
-matriz simétrica.
+$$A_{ij} = 1 \qquad \text{si existe una arista de i a j} $$
+  y 
+$$
+A_{ij} = 0 \qquad \text{en caso contrario}.
+$$
+
+
+En el caso no dirigido, $A$ es una
+matriz simétrica, es decir 
+$$A_{ij} = A_{ji}= 1 \qquad \text{si existe conexión entre i y j} $$
+
+$$
+A_{ij} = 0 \qquad \text{en caso contrario}.
+$$
+
 
 ```{r}
+# Extrae la matriz de adyacencia
 matriz_ad <- igraph::get.adjacency(red_tbl)
 matriz_ad
 ```
 
-Es más conveniente representar estas matrices como matrices ralas,
+Es común que las gráficas de nodos tengan pocas aristas, por lo que es más conveniente representar estas matrices como matrices ralas,
 como veremos más adelante.
 
 **Nota de R**: utilizamos el paquete *tidygraph* y **ggraph** para hacer manipulaciones de gráficas y graficación. Estos paquetes son extensiones
@@ -103,8 +131,14 @@ Por ejemplo, aquí construimos una red aleatoria, y hacemos un *layout* de
 nodos aleatorio:
 
 ```{r, fig.width = 6, fig.asp = 0.7}
+# Fija la semilla
 set.seed(1234)
+
+# Grafica de 20 nodos aleatorios
 g <- play_erdos_renyi(n = 20, p = 0.1, directed = FALSE) %>% as_tbl_graph()
+g
+
+# Representación con formato de layout aleatorio.
 ggraph(g, layout = 'randomly') + geom_edge_link() +
   geom_node_point(size = 2, colour = 'salmon') +
   theme_graph()
@@ -113,10 +147,13 @@ ggraph(g, layout = 'randomly') + geom_edge_link() +
 Y comparamos con la representación producida por un algoritmo basado en fuerzas.
 
 ```{r, fig.width = 6, fig.asp = 0.7}
+
+# Representación con algoritmo basado en fuerzas.
 ggraph(g, layout = 'fr') + geom_edge_link() +
     geom_node_point(size = 2, colour = 'salmon') +
     theme_graph()
 ```
+
 
 ```{block2, type='resumen'}
 Los algoritmos basados en fuerzas para representar redes en 2 o 3 dimensiones se basan principalmente en la siguiente idea:
@@ -132,9 +169,25 @@ etc. Intenta mover los nodos de las siguiente gráfica para entender el funciona
 básico de estos algoritmos:
 
 ```{r}
+# Carga la librería
 library(visNetwork)
+
+# Activa (referencías) las aristas de la gráfica.
 edges <- g %>% activate(edges) %>% as_data_frame
+
+# Fija la semilla
 set.seed(13)
+
+# Estructura de la red:
+# id:= identificador de los nodos
+# label:= nombre de los nodos
+# with:= fijar el ancho.
+# solver:= método de estimación 
+# gravitationalConstant= atracción/repulsión entre nodos
+# centralGravity:= que tan junto/separado queda todo
+# springLength:= tamaño del resorte
+# springConstant:= rigidez de las aristas,
+# avoidOverlap:= para que no se encimen nodos.
 red_vis <- visNetwork(nodes = data_frame(id = 1:20, label = 1:20), 
            edges, width = "100%") %>%
   visPhysics(solver ='forceAtlas2Based', 
@@ -148,36 +201,157 @@ red_vis
 ```
 
 
+
 ### Ejercicio
 - Para la gráfica anterior, busca qué parámetros
 puedes cambiar en el algoritmo y experimenta cambiándolos (cuánta repulsión, rigidez
 de los resortes, número de iteraciones, etc.)
+
+```{r}
+# Fija la semilla
+set.seed(13)
+
+# Estructura de la red:
+# id:= identificador de los nodos
+# label:= nombre de los nodos
+# with:= fijar el ancho.
+# solver:= método de estimación 
+# gravitationalConstant= atracción/repulsión entre nodos
+# centralGravity:= que tan junto/separado queda todo
+# springLength:= tamaño del resorte
+# springConstant:= rigidez de las aristas,
+# avoidOverlap:= para que no se encimen nodos.
+red_vis <- visNetwork(nodes = data_frame(id = 1:20, label = 1:20), 
+           edges, width = "100%") %>%
+  visPhysics(solver ='forceAtlas2Based', 
+             forceAtlas2Based = list(gravitationalConstant = 10, # negativo!
+                              centralGravity = 0.01, 
+                              springLength = 100,
+                              springConstant = 0.08,
+                              avoidOverlap = 0
+                              ))
+red_vis
+```
+
+Aumentar el valor de `gravitationalConstant` hace que los nodos estén mucho más pegados y, si se eleva demasiado, que choquen constantemente.
+
+```{r}
+# Fija la semilla
+set.seed(13)
+
+# Estructura de la red:
+# id:= identificador de los nodos
+# label:= nombre de los nodos
+# with:= fijar el ancho.
+# solver:= método de estimación 
+# gravitationalConstant= atracción/repulsión entre nodos
+# centralGravity:= que tan junto/separado queda todo
+# springLength:= tamaño del resorte
+# springConstant:= rigidez de las aristas,
+# avoidOverlap:= para que no se encimen nodos.
+red_vis <- visNetwork(nodes = data_frame(id = 1:20, label = 1:20), 
+           edges, width = "100%") %>%
+  visPhysics(solver ='forceAtlas2Based', 
+             forceAtlas2Based = list(gravitationalConstant = - 50, # negativo!
+                              centralGravity = 0.1, 
+                              springLength = 100,
+                              springConstant = 0.08,
+                              avoidOverlap = 0
+                              ))
+red_vis
+```
+Aumentar el valor `centralGravity` ie. la gravedad de la gráfica hace que los nodos y, en general, la red esté mucho más pegado hacia el centro. 
+
+```{r}
+# Fija la semilla
+set.seed(13)
+
+# Estructura de la red:
+# id:= identificador de los nodos
+# label:= nombre de los nodos
+# with:= fijar el ancho.
+# solver:= método de estimación 
+# gravitationalConstant= atracción/repulsión entre nodos
+# centralGravity:= que tan junto/separado queda todo
+# springLength:= tamaño del resorte
+# springConstant:= rigidez de las aristas,
+# avoidOverlap:= para que no se encimen nodos.
+red_vis <- visNetwork(nodes = data_frame(id = 1:20, label = 1:20), 
+           edges, width = "100%") %>%
+  visPhysics(solver ='forceAtlas2Based', 
+             forceAtlas2Based = list(gravitationalConstant = - 50, # negativo!
+                              centralGravity = 0.01, 
+                              springLength = 10,
+                              springConstant = 0.08,
+                              avoidOverlap = 0
+                              ))
+red_vis
+```
+
+Disminuir el valor de `springLength` hace que las aristas sean menos flexibles.
+
+
+```{r}
+# Fija la semilla
+set.seed(13)
+
+# Estructura de la red:
+# id:= identificador de los nodos
+# label:= nombre de los nodos
+# with:= fijar el ancho.
+# solver:= método de estimación 
+# gravitationalConstant= atracción/repulsión entre nodos
+# centralGravity:= que tan junto/separado queda todo
+# springLength:= tamaño del resorte
+# springConstant:= rigidez de las aristas,
+# avoidOverlap:= para que no se encimen nodos.
+red_vis <- visNetwork(nodes = data_frame(id = 1:20, label = 1:20), 
+           edges, width = "100%") %>%
+  visPhysics(solver ='forceAtlas2Based', 
+             forceAtlas2Based = list(gravitationalConstant = - 50, # negativo!
+                              centralGravity = 0.01, 
+                              springLength = 100,
+                              springConstant = 0.5,
+                              avoidOverlap = 0
+                              ))
+red_vis
+```
+
+Aumentar el valor de `springConstant` hace que los resortes de los nodos sean mucho más rigidos y no se puedan mover tan lejos. 
 
 
 Otras familias de algoritmos intentan distintas estrategias, como los layout
 de círculo, estrella, para árboles, etc.
 
 ```{r, fig.width = 6, fig.asp = 0.7}
+
+# Grafica de nodos circular. 
 ggraph(g, layout = 'circle') +
   geom_edge_link() +
   geom_node_point(size = 2, colour = 'salmon') +
   theme_graph()
+
 ```
+
+Notar que entre más grande es la red, más difícil es su visualización o bien, es menos informativa. 
+
 
 ## Medidas de centralidad para redes
 
-Como discutimos arriba, las medidas de centralidad en redes intenta capturar
-un concepto de importancia o conectividad de un nodo en una red. Primero comenzamos
-con el caso **no dirigido**. Medidas básicas de centralidad son
+Como discutimos arriba, las medidas de centralidad en redes intentan capturar
+un concepto de importancia o conectividad de un nodo en una red. 
+
+Para el caso **no dirigido**, las medidas básicas de centralidad son
 
 
-- **Grado** o grado de entrada/salida: cuántas ligas tiene un nodo (no dirigidos, de entrada o de salida). 
+- **Grado** o grado de entrada/salida: cuántas ligas tiene un nodo. Dado que es no dirigido, se refiere a ligas de entrada o de salida. Esta es la medida más obvia de centralidad. Entre más aristas, más importante es el nodo.  
 
-- **Betweeness**: qué tan importante o única es un nodo para conectar otros pares
+- **Betweeness**: qué tan importante o único es un nodo para conectar otros pares
 de nodos de la red (por ejemplo, una persona con betweeness alto controla más fácilmente el flujo de información en una red social). 
-- **Cercanía**: qué tan lejos en promedio están los otros nodos de la red (pues puede encontrar y conectar más fácilmente otras dos en la red).
 
-- **Centralidad de eigenvector/Pagerank**: la centralidad de un nodo es una especie de promedio de la centralidad de sus vecinos.
+- **Cercanía**: qué tan lejos en promedio están los otros nodos de la red (pues puede encontrar y conectar más fácilmente otros dos nodos en la red).
+
+- **Centralidad de eigenvector/Pagerank**: la centralidad de un nodo es una especie de promedio de la centralidad de sus vecinos. Si conecta con nodos importantes, es un nodo importante tambíen. 
 
 ### Grado
 
@@ -188,20 +362,27 @@ $$c_G(i)=\sum_{j\leq i} A_{i,j}.$$
 que cuenta cúantas aristas conectan con el nodo $i$.
 
 ```{r}
+# Función para graficar una red no dirigida
 graficar_red_nd <- function(dat_g){
-  ggraph(dat_g, layout = 'kk') +
-  geom_edge_link(alpha=0.2) +
-  geom_node_point(aes(size = importancia), colour = 'salmon') +
-  geom_node_text(aes(label = nombre), nudge_y = 0.2, size=3) +
+  
+  ggraph(dat_g, layout = 'kk') + # base 
+  geom_edge_link(alpha=0.2) + # transparencia de aristas
+  geom_node_point(aes(size = importancia), colour = 'salmon') + # tamaño por importancia
+  geom_node_text(aes(label = nombre), nudge_y = 0.2, size=3) + # etiqueta de nodos
   theme_graph(base_family = 'sans')
 }
 
-g_grado <- g %>% activate(nodes) %>%
-  mutate(importancia = centrality_degree()) %>%
-  mutate(nombre = 1:20) 
+# Plot de grafica de nodos por importancia de grado
+g_grado <- g %>% # grafica de nodos
+  activate(nodes) %>% # activa las tablas
+  mutate(importancia = centrality_degree()) %>% # calcula la importancia como el grado de centralidad.
+  mutate(nombre = 1:20) # nombre de los nodos
 
+# Plot de la grafica de nodos por importancia de grado
 graficar_red_nd(g_grado)
 ```
+
+Podemos notar que los nodos más importantes son el 8 y el 19 (5 aristas cada uno), mientras que el nodo 3 tiene importancia cero porque no conecta con ningún otro nodo. 
 
 
 #### ¿Qué no captura el grado como medida de centralidad? {-}
@@ -211,55 +392,68 @@ El **grado** es una medida local que no toma en cuenta la topología más global
 de la red: cómo están conectados nodos más lejanos alrededor del nodo que nos interesa.
 ```
 
-#### Distancia a otros nodos {-}
+##### Distancia a otros nodos {-}
 
-En primer lugar, por ejemplo, no captura que algunos nodos están más cercanos en 
+En primer lugar, por ejemplo, el grado no captura que algunos nodos están más cercanos en 
 promedio a los nodos de la red que otros.
 
 ```{r}
-g_simple <- igraph::graph(c(1, 2, 2, 3, 3, 4, 4, 5), directed = FALSE) %>% 
-  as_tbl_graph() %>%
-  mutate(importancia = centrality_degree()) %>%
-  mutate(nombre  = LETTERS[1:5])
+# Define una gráfica no dirigida con aristas entre 1 y 2,  2 y 3, 3 y 4, 4 y 5.   
+g_simple <- igraph::graph(c(1, 2, 2, 3, 3, 4, 4, 5), directed = FALSE) %>%  # define la grafica
+  as_tbl_graph() %>% # convierte a tbl_graph
+  mutate(importancia = centrality_degree()) %>% # calcula la importancia como el grado
+  mutate(nombre  = LETTERS[1:5]) # asigna etiquetas.
+
+# Plot de la gráfica.
 graficar_red_nd(g_simple)
 ```
 
 Obsérvese en este ejemplo que el nodo $C$ es más importante que $D$, en el sentido
 de que está más cercano a los nodos de toda la red, aún cuando el grado es el mismo
-para ambos.
+para ambos nodos.
 
 
-#### Caminos que pasan por un nodo {-}
+##### Caminos que pasan por un nodo {-}
 
 En la siguiente gráfica, el nodo $G$ es importante porque es la única conexión
 entre dos partes de la red, y esto no lo captura el grado:
 
 ```{r}
-triangulo_1 <- c(1,2,2,3,3,1)
-triangulo_2 <- triangulo_1 + 3
-red_3 <- igraph::graph(c(triangulo_1, triangulo_2, c(7,1,7,4)), directed = FALSE) %>% 
-  as_tbl_graph() %>%
-  mutate(importancia = centrality_degree()) %>%
-  mutate(nombre  = LETTERS[1:7])
+
+# Define dos partes de la grafica
+triangulo_1 <- c(1,2,2,3,3,1) # 1 y 2, 2 y 3, 3 y 1.
+triangulo_2 <- triangulo_1 + 3 # 4 y 5, 5 y 6, 6 y 4
+
+# Consturye la red no dirigida
+red_3 <- igraph::graph(c(triangulo_1, triangulo_2, c(7,1,7,4)), directed = FALSE) %>% # une los triangulos y agrega aristas 7 y 1, 7 y 4.
+  as_tbl_graph() %>% # convierte a tbl_graph
+  mutate(importancia = centrality_degree()) %>% # calcula la importancia con el grado
+  mutate(nombre  = LETTERS[1:7]) # asigna etiquetas de nodos
+
+# plot de la red.
 graficar_red_nd(red_3)
 ```
 
 #### Nodos conectados a otros nodos importantes {-}
 
 En la siguiente gráfica el nodo $H$ tienen el mismo grado que $F$, pero
-$H$ está conectado a un nodo más importante ($A$)
+$H$ está conectado a un nodo más importante ($A$), por ello $H$ parecería ser más importante que $F$. 
+
 ```{r}
-red_4 <- igraph::graph(c(2,1,3,1,4,1,5,1,2,3,6,2,1,7,1,8), directed=FALSE) %>% 
-  as_tbl_graph() %>%
-  mutate(importancia = centrality_degree()) %>%
-  mutate(nombre  = LETTERS[1:8])
+# Define la red no dirigda. 2 y 1, 3 y 1, 4 y 1, 5 y 1, 2 y 3, 6 y 2, 1 y 7, 1 y 8. 
+red_4 <- igraph::graph(c(2,1,3,1,4,1,5,1,2,3,6,2,1,7,1,8), directed=FALSE) %>% # aristas
+  as_tbl_graph() %>% # convierte a tbl_graph
+  mutate(importancia = centrality_degree()) %>% # calcula importancia con el grado. 
+  mutate(nombre  = LETTERS[1:8]) # asigna nombres de nodos. 
+
+# plot de la gráfica
 graficar_red_nd(red_4)
 ```
 
 
 ### Medida de centralidad: *Betweeness*.
 
-La medida de centralidad *betweeness* de un nodo $i$ se define como:
+La medida de centralidad *betweeness* busca el número de camnios más cortos que pasan por cada nodo. El *betweeness* de un nodo $i$ se define como:
 $$c_b (u) = \sum_{j<k, u\neq j,u\neq i} \frac{ g(j,k |u)}{ g(j,k)},$$
 donde
 
@@ -277,33 +471,40 @@ en una red de $n$ nodos.
 #### Ejemplo {-}
 
 ```{r, fig.width=4, align='center'}
-red_4 <- igraph::graph(c(2,1,3,1,4,1,5,1,2,3,6,2,2,5,1,6,6,7), directed = FALSE) %>% 
-  as_tbl_graph() %>%
-  mutate(importancia = centrality_betweenness()) %>%
-  mutate(nombre  = LETTERS[1:7])
+# Define la red no dirigida 
+red_4 <- igraph::graph(c(2,1,3,1,4,1,5,1,2,3,6,2,2,5,1,6,6,7), directed = FALSE) %>%  # nodos 
+  as_tbl_graph() %>% # convierte a formato tbl_graph
+  mutate(importancia = centrality_betweenness()) %>% # calcula importancia como el betweenness 
+  mutate(nombre  = LETTERS[1:7]) # asigna nombres 
+
+# Plot de la red 
 graficar_red_nd(red_4) + labs(subtitle = 'Betweeness')
 ```
 
 Por ejemplo, consideremos el nodo $B$. Hay dos caminos más
-cortos de $C$ a $F$ (de tamaño) 2, y uno de ellos pasa por $B$. 
+cortos de $C$ a $F$ (de tamaño 2), y uno de ellos pasa por $B$. 
 De modo que los caminos de $C$ a $F$ aportan 0.5 al *betweeness*
-de $B$. De los caminos más cortos entre $E$ y $D$, ninguno pasa
+de $B$. De los caminos más cortos entre $D$ y $E$, ninguno pasa
 por $B$, así que este par de vértices aporta 0 al *betweeness*.
 Verifica el valor de betweeness para $B$ haciendo los cálculos
 restantes:
 
 
 ```{r}
+# Convierte la red a un data frame 
 red_4 %>% as_data_frame
 ```
 
+Ver cálculos en mis notas a mano. 
+
+
 #### Ejemplo de grado y betweeness: Pulp Fiction {-}
 
-En esta red, el color es una medición de betweeness y el tamaño el grado.
+En esta red, el color es una medición de betweeness y el tamaño del nodo una medición del grado.
 Aunque Butch y Jules tienen grados similares, Butch tiene *betweeness* más alto
 pues provee más ligas únicas más cortas 
-entre los personajes (mientras que la mayoría de los de Jules
-pasan también por Vincent).
+entre los personajes; mientras que la mayoría de los de Jules
+pasan también por Vincent.
 
 ![Pulp fiction](./imagenes/pulp_fiction_between.png)
 
@@ -311,33 +512,39 @@ pasan también por Vincent).
 ### Medida de centralidad: Cercanía
 
 También es posible definir medidas de importancia según el promedio de cercanía a todos
-los nodos: el inverso del promedio de distancias del nodo a todos los demás.
+los nodos. Ésta se calcula como el inverso del promedio de distancias del nodo a todos los demás.
 
 #### Ejemplo {-}
 ```{r}
+# Define la gráfica no dirigda 
 red_5 <- igraph::graph(c(2,1,3,1,4,9,5,2,2,3,6,1,7,8,
                  8,9,9,1,1,8,1,7), 
                directed = FALSE)
-```
 
-```{r}
-red_5 <- red_5 %>% as_tbl_graph() %>%
-  mutate(importancia = centrality_closeness(normalized = TRUE)) %>%
-  mutate(nombre  = LETTERS[1:9])
-red_5 %>% activate(nodes) %>% as_data_frame
+red_5 <- red_5 %>% # nodos 
+  as_tbl_graph() %>% # convierte a tbl_graph
+  mutate(importancia = centrality_closeness(normalized = TRUE)) %>% # mide centralidad como la cercanía
+  mutate(nombre  = LETTERS[1:9]) # asigan nombres 
+
+red_5 %>% activate(nodes) %>% as_data_frame # activa nodos y convierte a data frame 
+
+# Grafica la red 
 graficar_red_nd(red_5) + labs(subtitle = 'Cercanía')
 ```
+
 En este ejemplo, el nodo $F$ tiene cercanía más alta que $D$, por ejemplo,
-pues se conecta a un nodo bien conectado de la red (en grado y betweeness):
+pues se conecta directamente a un nodo bien conectado de la red (en grado y betweeness).
 
 #### Ejercicio {-}
 Verifica que la cercanía de $A$ es 0.80.
+
+Ver mis notas a mano para la solución. 
 
 ### Centralidad de eigenvector
 
 Esta medida considera que la importancia de un nodo está dado por la suma 
 normalizada de las
-importancias de sus vecinos. De esta forma, es importante estar cercano a nodos importantes (como en cercanía), pero también cuenta conectarse a muchos nodos (como en grado).
+importancias de sus vecinos. De esta forma, es importante estar cercano a nodos importantes (como en cercanía), pero también cuenta conectarse a muchos nodos (como en grado). Es decir, **el nodo es importante si está conectado a muchos nodos que sean importantes**.
 
 - Nótese que esta es una descripción circular: para saber la importancia de un nodo, hay que saber la importancia de sus vecinos.
 
@@ -345,9 +552,13 @@ Consideremos el ejemplo siguiente:
 
 
 ```{r, fig.height=3}
-red_6 <- igraph::graph(c(1,2,1,3,1,4,5,2), directed = FALSE) %>%
-  as_tbl_graph() %>% mutate(nombre = 1:5, importancia = 0)
-graficar_red_nd(red_6) + theme(legend.position="none")
+# Define la red no dirigida 
+red_6 <- igraph::graph(c(1,2,1,3,1,4,5,2), directed = FALSE) %>% # nodos
+  as_tbl_graph() %>% # convierte a tbl_graph
+  mutate(nombre = 1:5, importancia = 0) # asigna nombres 
+
+# plot de la red 
+graficar_red_nd(red_6) + theme(legend.position="none")+ labs(subtitle = 'Eigenvector')
 ```
 
 Supongamos que las importancias  de estos 5 nodos son
@@ -370,7 +581,7 @@ $$y_2 = x_1 + x_5$$
 y para los siguientes nodos tendríamos
 $$y_3 =  x_1$$
 $$y_4 =  x_1$$
-$$y_5 = x_2$$.
+$$y_5 = x_2.$$
 
 Este sistema lo podemos escribir de forma matricial, usando
 la matriz de adyacencia, como
@@ -404,6 +615,18 @@ Sin embargo, ¿cuando existe un vector $x\geq 0$ con $\lambda>0$ que satisfaga e
 Resuelve el sistema de ecuaciones de arriba y verifica que tal vector existe.
 ¿Cuál es el valor de lambda?
 
+Resolviendo la ecuación $det(A-\lambda I)=0$ (ver mis notas a mano) obtenemos que los valores y vectores propios son: 
+```{r}
+# Matriz
+A<-matrix(c(0,1,1,1,0,1,0,0,0,1,1,0,0,0,0,1,0,0,0,0,0,1,0,0,0),nrow=5)
+
+# Eigenvalores y eigenvectores
+eigen(A)
+```
+
+Por lo tanto, para el valor propio de 1.8477591 se tienen que el correspondiente vector propio es no negativo. 
+
+Notar que para el valor propio 0.7653669 el correspondiente vector propio tienen elementos positivos y negativos, por lo tanto no satisface la propiedad que estamos buscando. 
 
 
 #### Matrices no negativas {-}
@@ -419,7 +642,7 @@ Si $A$ es una matriz no negativa,  entonces:
 
 - Existe un valor
 propio real *no-negativo* $\lambda_0$ tal que $\lambda_0\geq |\lambda|$ para cualquier otro valor propio $\lambda$ de $A$. 
-- Al valor propio $\lambda_0$ está asociado a uno (o varios) vector propio $x$ con entradas no negativas. 
+- Al valor propio $\lambda_0$ está asociado a uno (o varios) vector(es) propio(s) $x$ con entradas no negativas. 
 ```
 
 Nota: Parte de este teorema se puede entender observando que si $A$ es no-negativa, entonces
@@ -432,25 +655,45 @@ vector 0, entonces esto nos daría un conjunto de medidas (únicas hasta normali
 #### Ejemplo 1 {-}
 
 ```{r fig.width=3, fig.asp=1, out.width="200px", out.height="200px"}
-par(mar=c(0,0,0,0)); plot(red_6, vertex.size = 40)
+# Define márgenes
+par(mar=c(0,0,0,0))
+
+# Grafica de la red no dirigida
+plot(red_6, vertex.size = 40)
+
+# Extrae la matriz de adyacencia
 A_red <- igraph::get.adjacency(red_6)
+
+# Matriz de adyacencia
 A_red
 ```
 
 
 ```{r}
+# Calcula valore y vectores propios.
 desc_A <- eigen(A_red)
+
+# imprime valores y vectores propios.
 print(desc_A, digits = 2)
 ```
 
 Las medida de centralidad de eigenvector da entonces, en este caso:
 
 ```{r fig.width=3, fig.asp=1, out.width="200px", out.height="200px"}
+# Medida de centralidad dada por el vector propio con valor positivo con valor propio positivo.
 x <- desc_A$vectors[,1]
+
+# Imprime las medidas de importancia por centralidad
 print(x, digits = 2)
-par(mar=c(0,0,0,0)); plot(red_6, vertex.size  = 100*x)
+
+# Fija márgenes
+par(mar=c(0,0,0,0)); 
+
+# Grafica la red tomando en cuenta la importancia
+plot(red_6, vertex.size  = 100*x)
 ```
 
+Por lo tanto, el nodo más importante es el 1, luego el 2,, luego los nodos 3 y 4 (pues ambos conectan de la mosma manera con 1 ie. son intercambiables las etiquetas) y por úlitmo el 5.
 
 #### Ejemplo 2 {-}
 
@@ -459,27 +702,39 @@ vectores asociados no negativos, por ejemplo:
 
 
 ```{r fig.width=3, fig.asp=1, out.width="200px", out.height="200px", message =FALSE}
+# Define la red no dirigida
 red <- igraph::graph(c(1,2,2,3,3,1,2,4,5,6), directed = FALSE)
+
+# Ajusta márgenes y grafica
 par(mar=c(0,0,0,0)); plot(red, vertex.size=20)
+
+# Extrae la matriz de adyacencias
 A_red <- igraph::get.adjacency(red)
 A_red
 ```
 
+En este caso, la red consta de dos partes serpadas. 5 y 6 deberían tener la misma importancia pues sólo conectan entre ellos. En el otro segmento, parece que 1, 2 y 3 son más importantes que 4 pues conectan con dos nodos, pero también 2 podría ser más importante que 1 y 3 porque es la única forma de llegar a 4. Veamos que dice la medida de importancia por centralidad de eigenvector.
 
-Nótese que los eigenvectores 1 y 2 son no negativos, y están asociados a 
-vectores propios no negativos:
+
+
 ```{r}
+# Calcula eigenvalores y eigenvectores
 desc_A <- eigen(A_red)
+
+# Imprime los egienvalores y eigenvectores
 print(desc_A, digits = 2)
 ```
 
+Nótese que los eigenvectores 1 y 2 son no negativos, y están asociados a 
+vectores propios no negativos. Cada uno se enfoca uno de los dos componenetes de la red. El problema aquí es ¿qué eigenvalor uso? 
+
 En este caso, la medida de centralización dependería de qué
 peso le ponemos al primer vector propio vs el segundo vector propio. En este
-ejemplo, la unicidad no sucede pues la red asociado no es conexa.
+ejemplo, la unicidad no sucede pues la red asociada no es conexa.
 
 ### Matrices irreducibles y gráficas fuertemente conexas {-}
 
-¿Cuándo podemos garantizar unicidad en la solución de $Ax=\lambda x$ con $\lambda >0$ y qeu $x$ sea un vector no-negativo distinto de 0?
+¿Cuándo podemos garantizar unicidad en la solución de $Ax=\lambda x$ con $\lambda >0$ tal que $x$ sea un vector no-negativo distinto de 0?
 
 Sea $A$ la matriz de adyacencia de una gráfica **no dirigida**.
   
@@ -489,6 +744,8 @@ de $A$: $A$ es irreducible cuando para toda $i,j$ existe $m\geq 0$ tal
 que $(A^m)_{i,j} > 0$.
 
 *Nota*: discute por qué estas dos definiciones son equivalentes.
+$(A^m)_{ij}$ representa el número de caminos de tamaño $m$ para trasladarse del nodo $i$ al nodo $j$; por lo tanto si se garantiza que $(A^m)_{ij}>0 \quad \forall i,j$, entonces se puede garantizar que en al menos m pasos es posible conectar cualesquiera dos nodos de la red y por lo tanto la gráfica es fuertmente conexa. 
+
 
 Utilizaremos uno de los teoremas más importantes del
 álgebra lineal:
@@ -516,14 +773,29 @@ asociado al valor propio (único) de Perron-Frobenius.
 #### Ejemplo: facultad de tres universidades {-}
 
 ```{r}
+# instala paquetes
 install.packages('igraphdata')
+
+# carga liberías
 library("igraphdata")
+
+# Carga los datos
 data("UKfaculty")
+
+# Genera la gráfica no dirigda
 ukf.und <- igraph::as.undirected(UKfaculty) 
+
+# muestra algunos de los nodos. 
+# Esta gráfica tiene pesos
 head(dat_1 <- igraph::get.data.frame((ukf.und)))
+
+# Agrupa por universidad
 grupo <- igraph::get.vertex.attribute(UKfaculty, 'Group')
+
+# Crea el data frame
 nodos <- data.frame(id = 1:length(grupo))
 
+# Genera la red con forceAtrlas
 visNetwork(nodos, dat_1, width = "100%") %>%
   visPhysics(solver ='forceAtlas2Based', 
              forceAtlas2Based = list(gravitationalConstant = -10),
@@ -535,47 +807,70 @@ visNetwork(nodos, dat_1, width = "100%") %>%
 Ahora calculamos centralidad de eigenvector.
 
 ```{r fig.width=3, fig.asp=1, out.width="200px", out.height="200px"}
+
+# Extrae la matriz de adyacencias
 A <- igraph::get.adjacency(ukf.und)
+
+# Calcula eigenvalores y eigenvectores
 desc_A <- eigen(as.matrix(A))
+
+# Imprime eigenvalores
 desc_A$values
 ```
 
 ```{r}
+# Extrae el eigenvector correspondiente al eigenvalor mas grande
 vec <- as.numeric(desc_A$vector[,1])
+
+# Eigenvalor más grande
 desc_A$values[1]
+
+# Cambia el signo de los eigenvectores (pues son todos negativos)
 e_vector <- -vec
-qplot(e_vector)
+
+# Distribución del primer eigenvector (este es el vector de importancias)
+qplot(e_vector,xlab="Primer vector propio",main="Importancia por centralidad de eigenvector")+theme(plot.title = element_text(hjust=0.5))
 ```
 
 ```{r}
+# Fija paleta de colores de rojo a verde
 colores <- colorRampPalette(c('red','green'))
+
+# extrae colores para los elementos del vector de importancias
 colores_1 <- colores(length(e_vector))
+
+# Data frame con nodos, importancia y color
 nodos <- data.frame(id=1:length(vec), value = e_vector, 
                     color = colores_1[rank(e_vector)])
 
+# Grafica la red 
 visNetwork(nodos, dat_1 %>% select(-weight), 
-           width = "100%") %>%
+           width = "100%") %>% # estructura
   visPhysics(solver ='forceAtlas2Based', 
-             stabilization = TRUE) %>%
-  visNodes(value = 1, scaling = list(min = 1, max = 200))
+             stabilization = TRUE) %>% # método 
+  visNodes(value = 1, scaling = list(min = 1, max = 200)) # configuración de nodos
 ```
+
+Los nodos verde claro son los más importanes y los rojos oscuros los  menos importantes.
 
 Podemos calcular también usando gggraph:
 
 ```{r}
-uk_tbl <- ukf.und %>% as_tbl_graph() %>%
-  activate(nodes) %>%
-  mutate(nombre = 1:nrow(as_data_frame(.))) %>%
-  mutate(importancia = centrality_eigen())
-ggraph(uk_tbl, layout = 'fr') +
-  geom_edge_link(alpha=0.2) +
-  geom_node_point(aes(size = importancia), colour = 'salmon') +
-  theme_graph(base_family = 'sans')
+# Define la red
+uk_tbl <- ukf.und %>% # aristas
+  as_tbl_graph() %>% # convierte a formato tbl_graph
+  activate(nodes) %>% # activa nodos
+  mutate(nombre = 1:nrow(as_data_frame(.))) %>% # etiquetea nodos
+  mutate(importancia = centrality_eigen()) # asigna medida de centralidad de eigenvalor
+
+# Grafica de la red
+ggraph(uk_tbl, layout = 'fr') + # base
+  geom_edge_link(alpha=0.2) + # aristas
+  geom_node_point(aes(size = importancia), colour = 'salmon') + # nodos
+  theme_graph(base_family = 'sans') # tema de la grafica
 ```
 
-
-
-
+Parece haber ciertas agrupaciones  (clusters) entre los nodos de la red.
 
 
 ## Gráficas dirigidas
@@ -590,33 +885,48 @@ Estos conceptos pueden generalizarse para gráficas dirigidas, cuando hay un con
 Consideremos en particular cómo se calcula la centralidad de eigenvector para una red dirigida.
 
 ```{r fig.width=3, fig.asp=1, out.width="200px", out.height="200px"}
+# Fijar la semilla
 set.seed(28011)
+
+# Define la red dirigida de 5 nodos
 red_6 <- igraph::erdos.renyi.game(5, p.or.m=0.5, directed=T)
+
+# Grafica de la red
 par(mar=c(0,0,0,0))
 plot(red_6, vertex.size=40)
 ```
 
 Su matriz de adyacencia es no simétrica
 ```{r}
+# Extrae la matriz de adyacencia
 A <- igraph::get.adjacency(red_6)
 A
 ```
 
 
-Para este ejemplo, las ecuaciones de importancia son como sigue. Para el nodo 1,
-$$\lambda x_1 = x_2 + x_4 + x_5$$
+Para este ejemplo, las ecuaciones de importancia (tomando las entradas a cada nodo) son como sigue:
+
+Para el nodo 1,
+$$\lambda x_1 = x_3 + x_4 + x_5$$
 para el nodo 5, por ejemplo, es
-$$\lambda x_5 = x_1 + x_2 + x_3$$
+$$\lambda x_5 = x_1 + x_2 + x_4$$
 y así sucesivamente.
 
 Obsérvese que en cada ecuación se consideran las aristas *entrantes*, de forma que la ecuación del nodo 1 requiere la columna 1 de la matriz de adyacencia, el nodo 2 la columna 2, etc. Es decir, la ecuación que debemos resolver es
 
 $$A^t x = \lambda x$$
 
-En el ejemplo anterior,
+En el ejemplo anterior, las importancias (normalizadas para sumar uno) son:
 ```{r}
+# Calcula eigenvalores y eigenvectores para la transpuesta de la matriz de adyacencia
 desc_A <- eigen(t(as.matrix(A)))
+desc_A
+
+# Primer vector propio
 v <- desc_A$vectors[,1]
+
+# Imprime la proporición de cada elemento del vector propio
+# Esto para que tenga norma 1.
 print(as.numeric(v / sum(v)), digits = 2)
 ```
 
@@ -630,6 +940,9 @@ de gráficas no dirigidas:
 - Igualmente, $A$ es irreducible si y sólo si para cualquier $i,j$ existe una
 $m>0$ tal que $(A^m)_{i,j}>0$.
 
+La idea es que no importa que tan largo sea el camino, es chiste es que pueda ir y venir entre cualquier par de nodos. 
+
+
 Y podemos igualmente aplicar Perron-Frobenius, de donde concluimos: 
 
 
@@ -641,7 +954,7 @@ Si $A$ es irreducible, entonces $\lambda_0 > 0$ es un eigenvector simple de A, u
 Y entonces podemos definir una medida única de centralidad módulo una constante multiplicativa.
 
 
-### Ejemplos: ¿qué pasa si $A$ es no reducible {-}
+### Ejemplos: ¿qué pasa si $A$ es no reducible? {-}
 
 Hay distintas maneras en que la matriz no es reducible, y cada una
 de ellas contradice algún aspecto del teorema de Perron Frobenius.
@@ -651,48 +964,77 @@ podemos tener vectores propios no positivos (algunos nodos resultan
 con peso 0):
 
 ```{r fig.width=3, fig.asp=1, out.width="200px", out.height="200px"}
+
+# Define la red dirigida
 red <- igraph::graph(c(1,2,2,3,3,4,4,3), directed = TRUE)
+
+# Grafica la red
 par(mar=c(0,0,0,0)); plot(red, vertex.size = 40)
+
+# Matriz de adyacencia
 A_red <- as.matrix(igraph::get.adjacency(red))
 A_red
+
+# valores y vectores propios
 eigen(t(A_red))
 ```
+El problema en esta gráfica es que no se puede llegar del nodo 4 a los nodos 1 y 2 por ejempo. Entonces tenemos importancia cero en los nodos 1 y 2, pero esto no es muy bueno.
+
 
 Si la gráfica es disconexa, podemos tener valores propios no 
 simples con distintos
 vectores propios no negativos:
 
 ```{r fig.width=3, fig.asp=1, out.width="200px", out.height="200px"}
+# Define la red
 red <- igraph::graph(c(1,2,2,3,3,1,4,5,5,4), directed = TRUE)
+
+# Grafica la red dirigida 
 par(mar=c(0,0,0,0)); plot(red, vertex.size = 20)
+
+# matriz de adyacencia
 A_red <- as.matrix(igraph::get.adjacency(red))
 A_red
+
+# valores y vectores propios de la transpuesta
 eigen(t(A_red))
 ```
 
-O ningún valor propio positivo:
+En este ejemplo tenemos que la gráfica no es estrictamente conexa y que está serpada en dos gráficas. Se obtienen valores propios complejos y para aquellos dos valores propios que son positivos, cada vector propio correspondiente da importacia a uno de los dos componentes de la gráfica.
+
+
+Tambíen es posible que no se obtenga ningún valor propio positivo:
 ```{r fig.width=3, fig.asp=1, out.width="200px", out.height="200px"}
+
+# Define la red
 red <- igraph::graph(c(1, 2, 2, 3), directed = TRUE)
+
+# Grafica la red dirigida
 par(mar=c(0,0,0,0)); plot(red, vertex.size = 20)
+
+# Matriz de adyacencia
 A_red <- as.matrix(igraph::get.adjacency(red))
 A_red
+
+# Valores y vectores propios de la transpuesta
 print(eigen(t(A_red)), digits = 2)
 ```
 
+De este ejeplo, podemos ver que "todo termina" en el nodo 3. Tenemos que la unica solución al sistema es $\lambda=0$ y por lo tanto sólo el nodo tres es importante.
 
 
 ## Pagerank
 
 Pagerank es una medida similar a la centralidad de eigenvector:
 
-- La importancia de un nodo (página) es un promedio ponderado de las importancias de otras páginas que apuntan (ligan) hacia ella. 
+- La importancia de una página (nodo) es un promedio ponderado de las importancias de otras páginas que apuntan (ligan) hacia ella. 
 - Diferencia: usamos **gráficas dirigidas**, y **distribuimos el peso de las aristas dependiendo
 de cuántas ligas hacia afuera tiene una página**: es decir, la importancia de una página se diluye entre el número de ligas a sus hijos.
 
 Para una red dirigida de páginas de internet, definimos entonces su **matriz de transición** $M$
 como sigue:
 
-- $M_{ij} =1/k$ si la página $i$ tiene $k$ ligas hacia afuera, y una de ellas va al nodo $j$
+- $M_{ij} =1/k$ si la página $i$ tiene $k$ ligas hacia afuera, y una de ellas va a la página $j$
 - $M_{ij} = 0$ en otro caso.
 
 Intentaremos hacer algo similar a la centralidad de eigenvector, pero usando la matriz de transición en lugar de la matriz de adyacencia.
@@ -700,7 +1042,10 @@ Intentaremos hacer algo similar a la centralidad de eigenvector, pero usando la 
 ### Ejemplo {-}
 
 ```{r fig.width=3, fig.asp=1, out.width="200px", out.height="200px"}
+# Define la red dirigida
 red_p <- igraph::graph(c(1,2,1,4,1,3,2,1,2,4,3,1,4,3,2,3))
+
+# Gráfica de la red
 par(mar=c(0,0,0,0))
 plot(red_p, vertex.size=40, edge.curved=T, edge.arrow.size=0.5)
 ```
@@ -708,21 +1053,22 @@ plot(red_p, vertex.size=40, edge.curved=T, edge.arrow.size=0.5)
 La matriz de adyacencia no necesariamente es simétrica, pues la gráfica es dirigida:
 
 ```{r}
+# Matriz de adyacencia
 A <- igraph::get.adjacency(red_p)
 A
 ```
 
 
-Y calculamos la matriz M, que es la matriz A con los renglones normalizados por
-su suma:
+Y calculamos la matriz M, que es la matriz A con los renglones (salidas) normalizados por su suma (total de salidas):
 ```{r}
+# Normalizamos por la suma de los renglones
 M <- A / Matrix::rowSums(A)
 M
 ```
 
 ### La matriz $M$ es estocástica
 
-A la matriz $M$ le llamamos una **matriz estocástica**, pues cada uno
+La matriz $M$ es una **matriz estocástica**, pues cada uno
 de sus renglones son no negativos y suman 1. Bajo este supuesto, es posible
 demostrar otra versión del teorema de Perron Frobenius:
 
@@ -730,10 +1076,10 @@ demostrar otra versión del teorema de Perron Frobenius:
 **Principio de pagerank**
 
 Supongamos que $M$ es irreducible, que en el caso dirigido quiere decir que la red
-es *fuertemente conexa*: existe un camino *dirigido* entre cualquier par de vértices.
+es *fuertemente conexa*; es decir, existe un camino *dirigido* entre cualquier par de nodos.
 
 - Entonces el valor propio de Perron-Frobenius (simple) para $M^t$  es $\lambda_0=1$, y el único vector
-propio no negativo (módulo longitud) es estrictamente positivo y asociado a $\lambda_0=1$.
+propio no negativo (módulo longitud) es estrictamente positivo y está asociado a $\lambda_0=1$.
 
 Esto implica que si $r$ es el vector de importancias según pagerank, entonces $r$ debe satisfacer 
 
@@ -741,7 +1087,10 @@ $$r_j = \sum_{i\to j}  \frac{r_i}{d_i}$$
 
 donde la suma es sobre las ligas de entrada a $j$, y $d_i$ es el grado de salida del nodo $i$ (dividimos la importancia de $r_i$ sobre todas sus aristas de salida). En forma matricial,
 $$M^tr = r.$$
+  
 ```
+
+Notar que gracias a la normalización aquí si obtenemos $M'x=x$ y no una proporción.
 
 
 #### Ejercicio {-}
@@ -751,19 +1100,83 @@ red
 red_p 
 ```
 
+Solución:
+
+De forma matricial: 
+$$
+M'r=r
+\Rightarrow
+\begin{bmatrix}
+0 & 1/3 & 1 & 0\\
+1/3 & 0 & 0 & 0\\
+1/3 & 1/3 & 0 & 1 \\
+1/3 & 1/3 & 0 & 0 
+\end{bmatrix}
+\begin{bmatrix}
+r_1\\
+r_2\\
+r_3\\
+r_4\\
+\end{bmatrix}
+==
+\begin{bmatrix}
+r_1\\
+r_2\\
+r_3\\
+r_4\\
+\end{bmatrix}
+\Rightarrow
+\begin{array}{lll}
+\tfrac{r_2}{3}+r_3=r_1\\
+\tfrac{r_1}{3}=r_2\\
+\tfrac{r_1}{3}+\tfrac{r_2}{3}+r_4=r_3\\
+\tfrac{r_1}{3}+\tfrac{r_2}{3}=r_4\\
+
+\end{array}
+$$
+
+O bien, dividiendo la importancia sobre el grado de salida de las ligas entrantes, es decir  
+$$r_j = \sum_{i\to j}  \frac{r_i}{d_i}$$
+
+tenemos que: 
+
+$$
+r_1=\tfrac{r_2}{d_2}+\tfrac{r_3}{d_3}=\tfrac{r_2}{3}+r_3
+$$
+$$
+r_2=\tfrac{r_1}{d_1}=\tfrac{r_1}{3}
+$$
+
+$$
+r_3=\tfrac{r_1}{d_1}+\tfrac{r_2}{d_2}+\tfrac{r_4}{d_4}=\tfrac{r_1}{3}+\tfrac{r_2}{3}+r_4
+$$
+
+$$
+r_4=\tfrac{r_1}{d_1}+\tfrac{r_2}{d_2}=\tfrac{r_1}{3}+\tfrac{r_2}{3}
+$$
+
+que coincide con las ecuaciones anteriores. 
 
 
 #### Ejemplo: pagerank simple {-}
 ```{r, fit.width=6}
+# Extrae egienvalores y eigenvectores 
 decomp <- eigen(t(as.matrix(M)))
 decomp
+
+# Primer eigenvector en valor absluto. 
 vec_1 <- abs(as.numeric(decomp$vector[,1]))
 vec_1
+
+# normaliza el primer eigenvector para obtener las importancias 
 round(vec_1/sum(vec_1), 2)
 ```
 
 ```{r fig.width=3, fig.asp=1, out.width="200px", out.height="200px"}
+# Fija márgenes del plot 
 par(mar=c(0,0,0,0))
+
+# Grafica la red con el tamaño del nodo dado por la importancia. 
 plot(red_p, vertex.size=100*vec_1, 
                           edge.curved=T, edge.arrow.size=0.5)
 ```
@@ -782,41 +1195,86 @@ que representa sitios de internet, por ejemplo?
 - Si existen **callejones sin salida** la matriz $M$ no es estocástica, pues tiene un renglón de ceros - no podemos aplicar la teoría de arriba. Por ejemplo, la siguiente matriz no tiene un valor propio igual a 1 (conclusión invalidada: hay un valor propio igual a 1):
 
 ```{r fig.width=3, fig.asp=1, out.width="200px", out.height="200px"}
+# Define la red dirigida
 red_p <- igraph::graph(c(1,2,2,1,1,3))
-par(mar=c(0,0,0,0)); plot(red_p, vertex.size=30, edge.curved=T,edge.arrow.size=0.5)
+
+# Grafica la red 
+par(mar=c(0,0,0,0))
+plot(red_p, vertex.size=30, edge.curved=T,edge.arrow.size=0.5)
+
+# Obtiene la matriz de adyacencias
 A <- igraph::get.adjacency(red_p)
+
+# Normaiza la matriz de adyacencias por renglón 
 M <- t(scale(t(as.matrix(A)), center=FALSE, scale=apply(A,1,sum)))
 M
+
+# Cambia los NaN por ceros 
 M[3, ]  <- 0
+
+# Calcula eigenvalores y eigenvectores 
 eigen(t(M))
 ```
 
-- Si existen **trampas de telaraña** (spider traps) entonces la matriz $M$ es estocástica, pero las soluciones concentran todo la importancia en la trampa (en este caso consiste de los nodos 1 y 2) (conclusión invalidada: el vector de importancias 
+En efecto, podemos comprobar que no hay ningún eigenvalor que sea igual a 1. 
+
+
+- Si existen **trampas de telaraña** (spider traps) entonces la matriz $M$ es estocástica, pero las soluciones concentran toda la importancia en la trampa (en este caso consiste de los nodos 1 y 2) (conclusión invalidada: el vector de importancias 
 asociado al eigenvalor 1 es positivo).
 
 ```{r fig.width=3, fig.asp=1, out.width="200px", out.height="200px"}
+
+# Define la red dirigida 
 red_p <- igraph::graph(c(1,2,2,1,3,1,3,4,4,5,5,3))
-par(mar=c(0,0,0,0)); plot(red_p, vertex.size=30, edge.curved=T,edge.arrow.size=0.5)
+
+# Grafica la red 
+par(mar=c(0,0,0,0))
+plot(red_p, vertex.size=30, edge.curved=T,edge.arrow.size=0.5)
+
+# Matriz de adyacencias 
 A <- igraph::get.adjacency(red_p)
+
+# Normaliza la matriz 
 M <- t(scale(t(as.matrix(A)), center = FALSE, scale = apply(A,1,sum)))
+M
+
+# Calcula eigenvalores y eigenvectores 
 eigen(t(M))
 ```
+
+En efecto, una vez que se entra al nodo 1 el "flujo" solo pasa del node uno al dos y del dos al uno; es decir, ya no hay forma de que regrese a los nodos 3, 4 o 5. Como resultado, sí hay un eigenvalor igual a uno, pero el correspondiente eigenvector tienen entradas iguales a cero (que de hecho, corresponden a los nodos 3, 4, y 5). 
+
 
 - La red puede ser **disconexa**.  Por ejemplo, cuando hay dos componentes irreducibles, existe más de un vector propio asociado al valor propio 1 (conclusión invalidada: la solución es única y el valor propio 1 es simple), así que hay tantas soluciones como combinaciones lineales de los eigenvectores que aparecen:
 
 ```{r fig.width=3, fig.asp=1, out.width="200px", out.height="200px"}
+
+# Define la red dirigida
 red_p <- igraph::graph(c(1,2,2,3,3,1,4,5,5,6,6,5,6,4))
-par(mar=c(0,0,0,0)); plot(red_p, vertex.size=30,
-                          edge.curved=T,edge.arrow.size=0.5)
+
+# Grafica la red 
+par(mar=c(0,0,0,0))
+plot(red_p, vertex.size=30,
+     edge.curved=T,edge.arrow.size=0.5)
+
+# Obtiene la matriz de adyacencias
 A <- igraph::get.adjacency(red_p) %>% as.matrix
+
+# Normaliza la matriz de adyacencias y transpone 
 M <- t(scale(t(A), center=FALSE, scale=apply(A,1,sum)))
 M
+
+# Obtiene eigenvalores y eigenvectores 
 sol <- eigen(t(M))
 sol
+
+# normaliza el vector propio asociado
 round(sol$values,2)
 vec <- sol$vectors[,abs(sol$values-1) < 1e-8]
 Re(vec)
 ```
+
+Podemos ver que hay dos valores propios iguales a uno (uno para cada parte de la red) y por lo tanto, la solución no es única. Dependerá del peso que se le de a cada componente. 
 
 
 En términos de nuestra solución para dar importancia de páginas:
