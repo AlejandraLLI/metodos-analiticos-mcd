@@ -16,7 +16,7 @@ Hay varios enfoques que podemos utilizar para atacar este problema:
 
 - **Principalmente basados en contenido**:  En función de características de los estímulos, productos o películas (por ejemplo, género, actores, país de origen, año, etc.) intentamos predecir el gusto por el estímulo. En este enfoque, construimos variables derivadas del contenido de los artículos (por ejemplo: qué actores salen, año, etc. o en textos palabras que aparecen), e intentamos predecir el gusto a partir de esas características. 
 
-Ejemplo: Si mu gustó *Twilight* entonces el sistema recomienda otros dramas+vampiros ("por ejemplo entrevista con un vampiro", por contenido).
+Ejemplo: Si me gustó *Twilight* entonces el sistema recomienda otros dramas+vampiros ("por ejemplo entrevista con un vampiro", por contenido).
 
 - **Principalmente colaborativos**: utilizamos gustos o intereses de usuarios/artículos similares --- en el sentido de que les han gustado los mismos artículos/les gustaron a las mismas personas.
 
@@ -484,7 +484,7 @@ x <- rnorm(n)
 gustos <- data.frame(persona=1:n, gusto_1 = x + rnorm(n),
                      gusto_2 = -x + rnorm(n))
 
-# Exanuba la tabla de gustos 
+# Examina la tabla de gustos 
 head(gustos,3)
 
 # Calcula la corrleación de los gustos
@@ -540,14 +540,14 @@ entonces tenemos los siguientes problemas:
 - El promedio de evaluaciones es una estimación ruidosa del nivel general.
 
 - Podemos terminar con el problema opuesto: nótese que
-si $X_1,\ldots, X_k$ son mediciones de gusto distintos items, y $\bar{X}$ es la estimación del nivel $N$, entonces $S_j=X_j-\bar{X}$ y se tiene que 
+si $X_1,\ldots, X_k$ son mediciones de gusto por distintos items, y $\bar{X}$ es la estimación del nivel $N$, entonces $S_j=X_j-\bar{X}$ y se tiene que 
 
 $$Cov(X_1-\bar{X}, X_2-\bar{X})=Cov(S_1-\bar{S},S_2-\bar{S}),$$
 $$=Cov(S_1,S_2)-Cov(S_1,\bar{S})-Cov(S_2,\bar{S}) + Var(\bar{S})$$
 
 Si $k$ es chica, suponiendo que los gustos no están correlacionados,
 los términos intermedios puede tener valor negativo relativamente grande
-$\left( \text{es de orden} \frac{1}{k}\left)$, 
+$\left( \text{es de orden} \tfrac{1}{k}\right)$, 
 aún cuando el último término sea chico (de orden $\tfrac{1}{k^2}$)
 
 Así que ahora las correlaciones estimadas pueden tener sesgo hacia 
@@ -649,7 +649,7 @@ dat_valida %>% ungroup %>% summarise(error = recm(calif, pred))
 >
 >Using only the training data, Cinematch scores an RMSE of $0.9514$ on the quiz data, roughly a 10% improvement over the trivial algorithm. Cinematch has a similar performance on the test set, $0.9525$. In order to win the grand prize of $1,000,000$, a participating team had to improve this by another $10%$, to achieve $0.8572$ on the test set. Such an improvement on the quiz set corresponds to an RMSE of $0.8563$.
 
-Para este conjunto de datos, al menos tneemos mejor score que el algoritmo utilizado en su momento por netflix. Sin embargo, nótese que estrictamente hablando no podemos comparar nuestros resultados con estos números,
+Para este conjunto de datos, al menos tenemos mejor score que el algoritmo utilizado en su momento por netflix. Sin embargo, nótese que estrictamente hablando no podemos comparar nuestros resultados con estos números,
 en los que se usa una muestra de prueba separada, de películas vistas despúes del periodo de entrenamiento.
 
 ### Ejercicio: regularización del modelo simple {-}
@@ -665,7 +665,7 @@ medias_peliculas <- dat_netflix %>% group_by(peli_id) %>% summarise(media_peli =
 # Promedio general de calificaciones 
 media_gral <- mean(dat_netflix$calif)
 
-# Agrega la media de las peliculos a la base de datos de peliculas 
+# Agrega la media de las películas a la base de datos de peliculas 
 medias_p_2 <- left_join(medias_peliculas, pelis_nombres)
 
 # Ordena por calificación promedio 
@@ -680,7 +680,7 @@ $$
 \hat{x_{ij}} = \hat{\mu} + \frac{n_i}{\lambda+n_i} \hat{c_i} + \frac{m_j}{\lambda+m_j}\hat{d_j} 
 $$
 
-Si hay muchas evaluaciones, esto va a hacer que el ponderador sea muy cercano a uno y tenemos la misma medida que antes. Si hay pocas evaluaciones, entonces el ponderador va a ser cercano a cero y le doy a la media general más peso porque no confío en lo que estoy observando. 
+Si hay muchas evaluaciones, esto va a hacer que el ponderador sea muy cercano a uno y tenemos la misma medida que antes. Si hay pocas evaluaciones, entonces el ponderador va a ser cercano a cero y le doy más peso a la media general porque no confío en lo que estoy observando. 
 
 
 Entonces, la fórmula anterior equivale a encoger las predicciones hacia la media general cuando el número de evaluaciones es bajo. El grado de encogimiento depende de $\lambda$.
@@ -892,7 +892,7 @@ ggplot(comunes_2, aes(x=calif_c, y=calif_c_2))  +
 
 Se puede ver que hay una asociación positiva entre Gremlins 1 y Gremlins 2 pero que no hay relación entre Gremlins 1 y When Harry Met Sally. 
 
-**Pregunta**: ¿por qué los datos se ven en bandas? Las bandas aparecen porque son los rangoes con los que califican los usuarios. Por ejemplo, los que calificaron GGremlins con 4 y WHMS con 5 tienen puntos de la forma (4-b,5-b) con b la media del usuario, estos puntos s e ven como una línea ercta con pendiente positiva.
+**Pregunta**: ¿por qué los datos se ven en bandas? Las bandas aparecen porque son los rangos con los que califican los usuarios. Por ejemplo, los que calificaron GGremlins con 4 y WHMS con 5 tienen puntos de la forma (4-b,5-b) con b la media del usuario, estos puntos se ven como una línea recta con pendiente positiva.
 
 
 Y calculamos la similitud coseno:
@@ -933,11 +933,11 @@ ejemplos <- function(pelicula){
   # calcular similitudes
   out_sum <- datos_comp %>% # datos completos 
       group_by(peli_id) %>% #agrupa por película 
-      summarise(dist = sim_cos(calif_c, calif_c_1)) %>% #extrae similitud coseno
+      summarise(similitud = sim_cos(calif_c, calif_c_1)) %>% #extrae similitud coseno
       left_join(medias_p_2) # agrega las medias ponderadas 
   
   # Ordena por distancia coseno y selecciona variables 
-  out_sum %>% arrange(desc(dist))  %>% select(nombre, dist, num_calif_peli)
+  out_sum %>% arrange(desc(similitud))  %>% select(nombre, similitud, num_calif_peli)
 }
 
 ```
@@ -1068,7 +1068,7 @@ Así que al usuario $1$ le recomendamos la película $3$, pero al usuario $3$ le
 
 ---
 
-La idea es entonces encontrar pesos para películas $u$ y para usuarios $v$ de forma que
+La idea es entonces encontrar pesos para películas $v$ y para usuarios $u$ de forma que
 $X\approx \widetilde{X} = uv^t$: podemos reproducir las calificaciones observadas a partir de nuestro modelo de factores latentes.
 
 Nótese sin embargo que hay varias dimensiones que pueden describir a películas y usuarios:
@@ -1099,7 +1099,7 @@ u_2 <- c(-3,-3,0,-2,4)
 
 Que quiere decir que las películas $2$ y $3$ tienen volencia, pero la película $1$ no. Por otra parte, a los usuarios $1$, $2$ y $5$ no les gustan las películas con violencia, mientras que al usuario $5$ si les gustan.
 
-La idea ahora es que el gusto de una persona por una película se escribe como combinación de las dos dimensiones. Por ejemplo, para la persona $1$ tenemos, y la película $1$, empezamos haciendo
+La idea ahora es que el gusto de una persona por una película se escribe como combinación de las dos dimensiones. Por ejemplo, para la persona $1$ y la película $1$, empezamos haciendo
 
 ```{r}
 # Gusto del usuario uno por la película 1 bajo la dimensión 1
@@ -1134,10 +1134,10 @@ U
 V
 ```
 
-- El renglón $j$ de $U$ son los valores en las dimensiones latentes para
-la película $i$ (descriptores de usuarios).
-- El renglón $j$ de $V$ son los valores en las dimensiones latentes para
-el usuario $j$ (descriptores de películas)
+- El renglón $k$ de $U$ son los valores en las dimensiones latentes para
+el usuario $k$ (descriptores de usuarios).
+- El renglón $l$ de $V$ son los valores en las dimensiones latentes para
+la película $l$ (descriptores de películas)
 
 
 Nota: las $u_i$'s y las $v_j$'s se llaman matrices de rango 1. 
@@ -1174,7 +1174,7 @@ y nótese que esta aproximación es en el sentido de las entradas de $X$ que **s
 Notar que $X$ es una matriz rala, pero $\tilde{X}$ es una matriz densa (siempre puedo tener una estimación de la calificación de cada usuario para cada película). 
 
 
-Si quisieramos tener una suma ponderada, entonces estimaríamos las calificaciones como $\tilde{X}=U\LambdaV'$ con $\Lambda$ matriz diagonal de pesos. 
+Si quisieramos tener una suma ponderada, entonces estimaríamos las calificaciones como $\tilde{X}=U\Lambda V'$ con $\Lambda$ matriz diagonal de pesos. 
 
 
 Bajo este modelo, la predicción para el usuario $i$ y la película $j$
@@ -1257,7 +1257,7 @@ nuestro problema.
 ## Mínimos cuadrados alternados
 
 Supongamos entonces que queremos encontrar matrices $U$ y $V$, donde $U$ es una matrix de $n \times k$ ($n=$ número de usuarios), y $V$ es una matriz
-de $p \times k$, donde $p$ es el número de películas que nos de una
+de $p \times k$, donde $p$ es el número de películas tal que nos de una
 aproximación de la matrix $X$ de calificaciones
 $$
 X \approx UV^t
@@ -1266,7 +1266,7 @@ Ahora supongamos que conocemos $V_1$. Si este es el caso, entonces queremos
 resolver para $U_1$:
 $$ \min_{U_1}|| X - U_1V_1^t||_{obs}^2$$
 Como $V_1^t$ están fijas, este es un problema de mínimos cuadrados usual, y puede resolverse analíticamente (o usar descenso en gradiente, que
-es simple de calcular de forma analítica) para encontrar $U_1$. Una vez que encontramos $U_1$, la fijamos, e intentamos ahora resolver para $V$:
+es simple de calcular de forma analítica) para encontrar $U_1$. Una vez que encontramos $U_1$, la fijamos, e intentamos ahora resolver para $V_2$:
 
 $$ \min_{V_2}|| X - U_1V_2^t||_{obs}^2$$
 Y una vez que encontramos $V_2$ resolvemos
@@ -1296,7 +1296,7 @@ $m_j$ es el número de evaluaciones de la película $j$.
 
 **Observaciones**:
 
-- Nótese que penalizamos el tamaños de los vectores $u_i$ y $v_j$ para evitar sobreajuste (como en regresión ridge).
+- Nótese que penalizamos el tamaño de los vectores $u_i$ y $v_j$ para evitar sobreajuste (como en regresión ridge).
 - Nótese también que los pesos $n_i$ y $m_j$ en esta regularización hace comparables el término que aparece en la suma de los residuales al cuadrado
 (la primera suma),
 y el término de regularización: por ejemplo, si el usuario $i$ hizo
@@ -1488,7 +1488,7 @@ arrange(latentes_pelis, !!feature) %>% # ordena por factores
   tail(100) # Últimas 100 películas 
 ```
 
-Parecen ser títulos más viejos que no son series de televisión.Estos valores son positivos. 
+Parecen ser títulos más viejos que no son series de televisión. Estos valores son positivos. 
 
 La tercera dimensión latente:
 
@@ -1568,15 +1568,14 @@ El resto de las derivadas son iguales a 0 $\left(\text{para otros} u_a^{(m)}, v_
 
 ```{block2, type = 'comentario'}
 Sea $\gamma >0$ el tamaño de paso (tasa de aprendizaje) de descenso estocástico.
-Para cada evaluación $x_{i,j}$, la actualización de descenso está dada por,
-en forma vectorial:
+Para cada evaluación $x_{i,j}$, la actualización de descenso está dada, en forma vectorial, por:
                                                                             
 $$
 u_i^{(n+1)} = u_i^{(n)} +\gamma e_{i,j} v_j^{(n)}
 $$
 y
 $$
-v_j^{(n+1)} = v_j^{(n)} +\gamma e_{i,j} u_j^{(n)}
+v_j^{(n+1)} = v_j^{(n)} +\gamma e_{i,j} u_i^{(n)}
 $$
   
 Inicializamos las matrices $U$ y $V$ con valores aleatorios chicos.
@@ -1588,18 +1587,18 @@ Podemos también agregar el modelo base (que a veces es llamado modelo
 con *sesgos*):
 
 \begin{equation}
-L =  \sum_{(i,j) obs} (x_{ij} - a_i - b_j - \sum_{l=1}^k u_{i}^{(l)}v_{j}^{(l)})^2
+L =  \sum_{(i,j) obs} (x_{ij} +\mu - \hat{a}_i - \hat{b}_j - \sum_{l=1}^k u_{i}^{(l)}v_{j}^{(l)})^2
 \end{equation}
 
 Y las derivadas adicionales están dadas por
 
-$$\frac{\partial L_{i,j}}{\partial a_i} = -2e_{i,j} 
+$$\frac{\partial L_{i,j}}{\partial \hat{a}_i} = -2e_{i,j} 
 $$
 
-$$\frac{\partial L_{i,j}}{\partial b_j} = -2e_{i,j} 
+$$\frac{\partial L_{i,j}}{\partial \hat{b}_j} = -2e_{i,j} 
 $$
 
-y el resto de las derivadas (para otras $a_s$ y $b_t$) son iguales a $0$.
+y el resto de las derivadas (para otras $\hat{a}_s$ y $\hat{b}_t$) son iguales a $0$.
 
 
 ```{block2, type='resumen'}
@@ -1619,8 +1618,8 @@ pocas evaluaciones).
 La función a minimizar es ahora
 
 \begin{equation}
-L =  \sum_{(i,j) obs} (x_{ij} - \mu - a_i - b_j - \sum_{l=1}^k u_{i,l}v_{j,l})^2 +
-\lambda \left (  \sum_i ||u_i||^2 +  \sum_j ||v_j||^2 +  \sum_i a_i^2 + \sum_j b_j^2 \right )
+L =  \sum_{(i,j) obs} (x_{ij} + \mu - \hat{a}_i - \hat{b}_j - \sum_{l=1}^k u_{i,l}v_{j,l})^2 +
+\lambda \left (  \sum_i ||u_i||^2 +  \sum_j ||v_j||^2 +  \sum_i \hat{a}_i^2 + \sum_j \hat{b}_j^2 \right )
 (\#eq:regdescenso)
 \end{equation}
 
@@ -1642,7 +1641,7 @@ $$
 y
 
 $$
-v_j^{(n+1)} = v_j^{(n)} + \gamma \left ( e_{i,j} u_j^{(n)} -  \frac{\lambda}{m_j} v_j^{(n)} \right )
+v_j^{(n+1)} = v_j^{(n)} + \gamma \left ( e_{i,j} u_i^{(n)} -  \frac{\lambda}{m_j} v_j^{(n)} \right )
 $$
 
 
@@ -1652,7 +1651,7 @@ $$\mu^{(n+1)} = \mu^{(n)} + \gamma e_{i,j}$$
   
 $$a_i^{(n+1)} = a_i^{(n)} + \gamma \left ( e_{i,j} - \frac{\lambda}{n_i} a_i^{(n)} \right )$$
   
-$$b_j^{(n+1)} = b_i^{(n+1)} + \gamma \left ( e_{i,j} - \frac{\lambda}{m_j} b_j^{(n)} \right )$$
+$$b_j^{(n+1)} = b_j^{(n)} + \gamma \left ( e_{i,j} - \frac{\lambda}{m_j} b_j^{(n)} \right )$$
   
 Inicializamos las matrices $U$ y $V$ con valores aleatorios chicos.
 ```
@@ -1835,7 +1834,7 @@ for(iter in 1:10){
 }
 ```
 
-Notar que el error de entrenamiento y de validación son muy cercanos. Cuando hay una divergencia muy grande estos (entrenamiento muy chico y validación muy grande) se tiene un indicador de sobre ajuste del modelo. Para controlar esto, tenemos las u's, v's y $\lambda$. Lo primero que podemos hacer es regularizar más o tomar menos factores. 
+Notar que el error de entrenamiento y de validación son muy cercanos. Cuando hay una divergencia muy grande entre estos (entrenamiento muy chico y validación muy grande) se tiene un indicador de sobre ajuste del modelo. Para controlar esto, tenemos las u's, v's y $\lambda$. Lo primero que podemos hacer es regularizar más o tomar menos factores. 
 
 
 Notar también que aumentar el número de factores siempre hará que disminuya el error de entrenamiento pero tienes más riesgo de sobreajustar el modelo. 
@@ -2029,7 +2028,7 @@ implícitos son en un sentido menos informativos que los explícitos:
 
 - Puede ser que el valor de $r_{ij}$ sea relativamente bajo (pocas interacciones), pero de todas formas se trate de un artículo que es muy preferido (por ejemplo, solo vi Star Wars I una vez, pero me gusta mucho). Esto no pasa con los ratings, pues ratings bajos indican baja preferencia.
 
-- Sin embargo, estamos seguros de que niveles altos de interacción (oyó muchas veces una canción, etc.), es indicación de preferencia alta.
+- Sin embargo, estamos seguros de que niveles altos de interacción (oyó muchas veces una canción, etc.), es indicador de preferencia alta.
 
 - Así que en nuestro modelo no necesariamente queremos predecir directamente la variable $r_{ij}$: puede haber artículos con predicción baja de $r_{ij}$ que
 descubramos de todas formas van a ser altamente preferidos.
@@ -2049,7 +2048,7 @@ $$p_{ij} =
 Esta variable $p_{ij}$, cuando vale uno, indica algún nivel de preferencia.
 ¿Pero qué tanto valor debemos darle a esta preferencia? Definimos la confianza
 como
-$$c_{ij} = 1+ \alpha r_{ui},$$
+$$c_{ij} = 1+ \alpha r_{ij},$$
 donde $\alpha$ es un parámetro que hay que afinar (por ejemplo $\alpha$ entre $1$ y $50$). Para predicciones de vistas de TV, en [@recomendacion-implicita] utilizan
 $\alpha = 40$, donde $r_{ij}$ es el número de veces que el usuario ha visto
 un programa (contando vistas parciales, así que es un número real).
@@ -2062,7 +2061,7 @@ L =  \sum_{(i,j)} c_{ij}(p_{ij}  - \sum_{l=1}^k u_{i,l}v_{j,l})^2
 \end{equation}
 
 Nótese la diferencia con el caso explícito. En este caso, los valores
-de $c_{ij}$ (confianza) actúan como un pesos en el ajuste de
+de $c_{ij}$ (confianza) actúan como pesos en el ajuste de
 los factores, indicando que valores altos de $r_{ij}$ son más informativos y
 deben contribuir más en el ajuste, sin descalificar que un
 artìculo con $r_{ij}$ bajo puede ser preferido. Adicionalmente, los valores

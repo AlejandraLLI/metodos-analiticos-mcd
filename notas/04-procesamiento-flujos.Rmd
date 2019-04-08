@@ -20,7 +20,7 @@ Para analizar flujos con estas propiedades podemos hacer:
 
 ## Selección de muestras y funciones hash
 
-Dependiendo de qué nos interesa medir en un flujo podemos decidir cuáles
+Dependiendo de qué nos interesa medir en un flujo, podemos decidir cuáles
 son las unidades que es necesario muestrear. Típicamente la unidad de un
 flujo no corresponde a las unidades que nos interesan. Por ejemplo: en *logs*
 de sitios web, las unidades que observamos en el flujo son transacciones muy granulares (clicks, movimientos de mouse, envío de datos, etc.), pero nos interesa obtener
@@ -330,7 +330,7 @@ los enteros del uno al mil a las cubetas $1$ a $11$ (el número de entradas del
 # Elementos de la muestra previa 
 S <- c(15, 523, 922)
 
-# Funciones has a utilizar con modulo 11 para tener una cubeta por no. de bits. 
+# Funciones hash a utilizar con modulo 11 para tener una cubeta por no. de bits. 
 hash_f <- list(h_1 = function(x) x %% 11 + 1,
                    h_2 = function(x) (5*x + 3) %% 11 + 1)
 ```
@@ -463,21 +463,22 @@ una de las entradas del vector de bits con la misma probabilidad.
 La probabilidad de que un
 bit dado no se encienda cuando insertamos un elemento es entonces
 $$1-\frac{1}{n}$$.
+
 Si $k$ es el número de funciones hash escogidas independientemente, 
 entonces la probabilidad de que ese bit dado no se encienda es
-$$\left (1-\frac{1}{n}\right )^k$$.
+$$\left(1-\frac{1}{n}\right)^k$$.
 Si insertamos los $s$ elementos de $S$, la probabilidad de que ese bit dado
 no se encienda es entonces
-$$\left (1-\frac{1}{n}\right  )^{ks}$$.
+$$\left(1-\frac{1}{n}\right)^{ks}$$.
 La probabilidad de que se encienda es
-$$1-\left (1-\frac{1}{n}\right )^{ks}$$.
+$$1-\left(1-\frac{1}{n}\right)^{ks}$$.
 
 
 Finalmente podemos calcular la probabilidad de un falso positivo. Para un elemento
 que no está en $S$, la probabilidad de que todos sus hashes caigan en bits encendidos
 es
 
-$$ \left ( 1-\left (1-\frac{1}{n}\right )^{ks}\right )^k$$
+$$ \left[1-\left (1-\frac{1}{n}\right )^{ks}\right]^k$$
 
 **Observaciones**:
 
@@ -529,7 +530,7 @@ Hay un trade off entre tamaño de muestra original, no de bits, probabilidad de 
 
 Haciendo algunas aproximaciones, se puede demostrar que el número de hashes
 óptimo es aproximadamente
-$$k  = \frac{n}{s}\log(2)$$
+$$k  = \frac{n}{s}\log_{10}(2)$$
 
 ```{r, warning = FALSE}
 
@@ -1069,7 +1070,7 @@ es determinista, los elementos ya vistos no contribuyen a hacer crecer a este n�
 
 ### Discusión {-}
 
-Antes se seguir, hacemos la siguiente observación: Si consideramos
+Antes de seguir, hacemos la siguiente observación: Si consideramos
 los bits de cada nuevo elemento como aleatorios: 
 
 - La probabilidad de
@@ -1144,7 +1145,7 @@ hash diferentes:
 
 
 ```{r}
-# no. de candidatoas del flujo distintos
+# no. de candidatos del flujo distintos
 n <- 1000
 
 # Función hash 1: composición del hash 1 y la cuenta de ceros en colas. 

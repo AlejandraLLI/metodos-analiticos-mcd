@@ -1041,7 +1041,7 @@ caso, decimos que $f(x)=f(y)$ cuando al menos algún
 $f_i(x)=f_i(y)$.
 
 En este caso, la disyunción da una familia
-$(d_1,d_2,1-(1-p_1)^b,1-(1-p_2)^b)$ sensible a la localidad. Esta construcción
+$(d_1,d_2,1-(1-p_1^r)^b,1-(1-p_2^r)^b)$ sensible a la localidad. Esta construcción
 es equivalente a construir varias bandas.
 
 La idea general es ahora:

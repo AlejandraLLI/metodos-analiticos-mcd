@@ -33,28 +33,29 @@ inferir la palabra o texto correctos a partir de
 Ahora veremos por qué necesitamos estas dos partes. En notación de probabilidad, si observamos el mensaje transformado $X$ (texto con errores, sonido, página escrita), quisiéramos calcular, 
 para cada mensaje **en texto** $W$ la probabilidad
 
-$$P(W|X).$$
+$$P(W|X)$$
+es decir, la probabilidad del verdadero mensaje ($W$) dado que observé el mensaje transformado ($X$). 
 
 Propondríamos entonces como origen el texto $W^*$ que maximiza esta probabilidad condicional:
 
-$$W^* = argmax_W P(W|X).$$
+$$W^* = \underset{W}{argmax} P(W|X).$$
 
-que en principio es un máximo sobre todas las posibles frases del lenguaje.
+que en principio es un máximo sobre todas las posibles frases del lenguaje. Es decir, eligo aquel mensaje $W$ que maximiza la verosimilitud. 
 
-¿Cómo construimos esta probabilidad condicional? Tenemos que
+¿Cómo construimos esta probabilidad condicional? Siguiendo la regla de Bayes, tenemos que
 para cada posible frase $W$,
 
 $$P(W|X) = \frac{P(X|W)P(W)}{P(X)},$$
 
-así que podemos escribir ($X$ es constante)
+así, dado que $X$ es la constante de normalización, es equivalente a maximizar 
 
-$$ W^* = argmax_W P(X|W)P(W).$$
+$$ W^* = \underset{W}{argmax} P(X|W)P(W).$$
 
 Esta forma tiene dos partes importantes:
 
-1. **Verosimilitud**: la probabilidad $P(X|W)$ de observar el mensaje transfromado $X$ dado que el mensaje es $W$. Este el el  **modelo del canal** (o **modelo de errores**), que nos dice cómo ocurren errores o transformaciones $X$ cuando se pretende comunicar el mensaje $W$.
+1. **Verosimilitud**: la probabilidad $P(X|W)$ de observar el mensaje transfromado $X$ dado que el verdadero mensaje es $W$. Este el el  **modelo del canal** (o **modelo de errores**), que nos dice cómo ocurren errores o transformaciones $X$ cuando se pretende comunicar el mensaje $W$. Por ejemplo $P(hila|hola)$ sería alta, pero $P(gato|hola)$ sería baja. 
 
-2. **Inicial** o **previa**: La probabilidad $P(W)$ de observar el mensaje $W$ en el contexto actual. Esto depende más del lenguaje que del canal, y le llamamos el **modelo del lenguaje**.
+2. **Inicial** o **previa**: La probabilidad $P(W)$ de observar el mensaje $W$ en el contexto (lenguaje) actual. Esto depende más del lenguaje que del canal, y le llamamos el **modelo del lenguaje**. Por ejemplo, $P(hola)$ es alta, pero $P(parangaricutirimucaro)$ es baja.
 
 3. Nótese que con estas dos partes tenemos un modelo generativo para mensajes del canal ruidoso: primero seleccionamos un texto mediante el modelo de lenguaje, con las probabilidades $P(W)$, y dado el mensaje
 construimos el mensaje recibido según las probabilidades $P(X|W)$.
@@ -64,16 +65,19 @@ construimos el mensaje recibido según las probabilidades $P(X|W)$.
 Supongamos que recibimos el mensaje $X=$"Estoy a días minutos". Esta
 es una frase con baja probabilidad de ocurrir en español. 
 
-Supongamos que tenemos sólo tres frases en nuestro lenguaje:
+Supongamos que tenemos sólo cuatro frases en nuestro lenguaje:
 
 $W_1=$"Estoy a veinte minutos", $W_2=$"Estoy a diez minutos", y $W_3$= "No voy a llegar", y $W_4$="Estoy a tías minutos". Las probabilidades de cada una, dadas por el modelo de lenguaje, son
 (independientemente del mensaje recibido):
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Librerías
 library(tidyverse)
 library(tidytext)
 library(methods)
 library(utils)
+
+# Dataframe del corpus con las probabiliades del lenguaje
 p <- data_frame(W = c("$W_1$","$W_2$", "$W_3$", "$W_4$"),
                 `P(W)` = c(0.001, 0.001, 0.008, 0.000001)) 
 p %>% knitr::kable(format = 'markdown')
@@ -82,6 +86,7 @@ p %>% knitr::kable(format = 'markdown')
 Ahora supongamos que el modelo del canal nos da
 
 ```{r, echo=FALSE}
+# Agrega las probabilidades condicionales (modelo del canal)
 p <- data_frame(W = c("$W_1$","$W_2$", "$W_3$", "$W_4$"),
                 `P(W)` = c(0.001, 0.001, 0.008, 0.000001),
                 `P(X|W)` = c(0.01, 0.12, 0, 0.05)) 
@@ -91,16 +96,17 @@ Obsérvese que la probabilidad condicional más alta es la segunda, y en
 este modelo es imposible que $W_3$ se transforme en $X$ bajo el canal ruidoso. Multiplicando estas dos probabilidades obtenemos:
 
 ```{r, echo=FALSE}
+# Extrae la probabilidad condicional
 p <- data_frame(W = c("$W_1$","$W_2$", "$W_3$", "$W_4$"),
                 `P(W)` = c(0.002, 0.001, 0.008, 1e-6),
                 `P(X|W)` = c(0.01, 0.12, 0, 0.05)) %>%
   mutate(`P(X|W)P(W)` = `P(W)` * `P(X|W)`)
 p %>% knitr::kable(format = 'markdown')
 ```
-de modo que escogeríamos la segunda frase (máxima probabilidad condicional) como la interpretación de
+de modo que escogeríamos la segunda frase "Estoy a diez minutos" (aquella con la máxima probabilidad condicional) como la interpretación de la frase
 "Estoy a días minutos".
 
-Nótese que $P(X|W_3)$ en particular es muy bajo,
+Una probabilidad condicional baja puede ocurrir porque es poco probable que se distorsione el mensaje $W$ en el mensaje $X$; o bien, porque el mensaje $W$ tenga muy baja probabildad de ocurrir. Nótese que $P(X|W_3)$ en particular es muy bajo,
 porque es poco posible que el canal distosione "No voy a llegar" 
 a "Estoy a días minutos". Por otro lado $P(W_4)$ también
 es muy bajo, pues la frase $W_4$ tiene probabilidad muy baja de 
@@ -122,18 +128,18 @@ $P(W)$ (el modelo de lenguaje), donde $W$ es una sucesión de palabras.
 Consideremos cómo construiríamos las probabilidades $P(W)$, de manera que
 reflejen la ocurrencia de frases en nuestro lenguaje. Escribimos
 $$W=w_1 w_2 w_3 \cdots w_n,$$ 
-donde $w_i$ son las palabras que contienen el texto $W$.
+donde $w_i$ son las palabras que contiene el texto $W$.
 
 Aquí nos enfrentamos al primer problema:
 
 - Dada la variedad de frases que potencialmente hay en el lenguaje,
 no tiene mucho sentido intentar estimar o enumerar
 directamente estas probabilidades. Por ejemplo, si intentamos
-algo como intentar ver una colección de ejemplos del lenguaje,
+algo como ver una colección de ejemplos del lenguaje,
 veremos que el número de frases es muy grande, y la mayor
 parte de los textos o frases posibles en el lenguaje no
 ocurren en nuestra colección (por más grande que sea la
-colección).
+colección). Esto es, no funciona contar directamente todas las posibles frases y sus probabilidades.
 
 Para tener un acercamiento razonable, necesitamos considerar
 un modelo $P(W)$ con más estructura o supuestos. Hay varias maneras de hacer  esto, y un primer acercamiento
@@ -145,11 +151,14 @@ Consideramos entonces la regla del producto:
 
 $$P(w_1 w_2 w_3 \cdots w_n) = P(w_1)P(w_2|w_1)P(w_3|w_1 w_2) \cdots
 P(w_n|w_1 w_2 w_3 \cdots w_{n-1})$$
+
+Probablemente la dependencia de la palabra mil con la primer palabra es muy baja. Entonces, puedo irme no tan lejos para entender la probablidad de ocurrencia de una sola palabra. 
+
 Y observamos entonces que basta con calcular las probabilidades
 condicionales de la siguiente palabra:
 $$P(w_{m+1}|w_1\cdots w_m)$$
-para cualquier conjunto de palabras $w,w_1,\ldots, w_m$. 
-A estas $w,w_1,\ldots, w_m$ palabras que ocurren justo antes de $w$ les
+para cualquier conjunto de palabras $w_1,w_2,\ldots, w_m$. 
+A estas $w_1,w_2,\ldots, w_m$ palabras que ocurren justo antes de $w$ les
 llamamos el *contexto* de $w$ en la frase. Por la regla
 del producto, podemos ver entonces nuestro problema como uno
 de **predecir la palabra siguiente**, dado el contexto. Por ejemplo,
@@ -172,7 +181,7 @@ palabra.
 
 En el caso más simple, establecemos que la ocurrencia de una palabra es independiente de su contexto:
 
-$$P(w_1|w_2\cdots w_{n-1}) = P(w_1)$$
+$$P(w_n|w_1,w_2\cdots w_{n-1}) = P(w_n)$$
 
 de forma que el modelo del lenguaje se simplifica a:
 
@@ -188,7 +197,7 @@ misma probabilidad a la frase *un día* y a la frase *día un*, aunque
 la ocurrencia en el lenguaje de estas dos frases es muy distinta.
 
 Podríamos intentar un modelo usando **bigramas**, donde la siguiente
-palabra sólo depende de palabra previa:
+palabra sólo depende de palabra previa. De esta manera:
 
 $$P(w_1\cdots w_n) = P(w_1)P(w_2|w_1)P(w_3|w_2)  P(w_4|w_3) \cdots P(w_n|w_{n-1}).$$
 
@@ -197,7 +206,7 @@ Supongamos que consideramos el modelo de bigramas,  y queremos calcular
 la probabilidad de la frase "el perro corre". Entonces pondríamos
 $$P(el,perro,corre) = P(el)P(perro \,|\, el)P(corre \,|\, perro)$$ 
 Nótese que aún para frases más largas, sólo es necesario definir
-$P(w|z)$ para cada para de palabras del vocabulario $w,z$, lo cual
+$P(w|z)$ para cada par de palabras del vocabulario $w,z$, lo cual
 es un simplificación considerable.
 
 
@@ -207,6 +216,9 @@ Y así podemos seguir . Por ejemplo, con el **modelo de trigramas**,
 
 $$P(w_1\cdots w_n) = P(w_1)P(w_2|w_1)P(w_3|w_1w_2)  P(w_4|w_2w_3) \cdots P(w_n| w_{n-2} w_{n-1}).$$
 
+Este va a ser un mejor modelo, pero a cambio voy a necesitar más datos porque ahora tenque estimar $V^3$ posibilidades. 
+
+
 **Observación**: los modelos de n-gramas son aproximaciones útiles, y fallan en la modelación de dependencias de larga distancia. Por ejemplo, en la frase "Tengo un gato en mi casa, y es de tipo persa" tendríamos que considerar n-gramas imprácticamente largos para modelar correctamente la ocurrencia de la palabra "persa" al final de la oración.
 
 
@@ -214,10 +226,10 @@ $$P(w_1\cdots w_n) = P(w_1)P(w_2|w_1)P(w_3|w_1w_2)  P(w_4|w_2w_3) \cdots P(w_n| 
 
 Supongamos que tenemos una colección de textos o frases del lenguaje
 que nos interesa.
-¿Cómo podemos estimar las probabilidades del $P(w|a)$ $P(w|a,b)$?
+¿Cómo podemos estimar las probabilidades $P(w|a)$ $P(w|a,b)$?
 
 El enfoque más simple es estimación por máxima verosimilitud, que 
-en esto caso implica estimar con conteos de ocurrencia
+en este caso implica estimar con conteos de ocurrencia
 en el lenguaje. Si queremos
 estimar $P(w|z)$ (modelo de bigramas), entonces tomamos nuestra colección, y calculamos:
 
@@ -234,11 +246,25 @@ para hacer los cálculos y evitar *underflows*. Calculamos entonces usando:
 ¿Cómo se estimarían las probabilidades para el modelo de unigramas
 y trigramas?
 
+Para el modelo de unigramas tendríamos que $P(w|z)=P(z)=\dfrac{N(z)}{N}$ o bien, $log P(w|z)=log N(z)-log N$. 
+
+Para el modelo de trigramas, tendríamos que $P(w|y,z)=\dfrac{N(w,y,z)}{N(y,z)}$ o bien, $log P(w|y,z) = log N(w,y,z) - log N(y,z)$. 
+
 #### Ejercicio {-}
 Considera la colección de textos "un día muy soleado", 
 "un día muy lluvioso", "un ejemplo muy simple de bigramas". Estima
-las probabilidades $P(muy)$, $P(día | un)$, $P(simple | muy)$ usando
+las probabilidades $P(\text{muy})$, $P(\text{día} | \text{un})$, $P(\text{simple}| \text{muy})$ usando
 conteos.
+
+**Solución**
+Posibles palabras: un, dia, muy, soleado, lluvioso, ejemplo, simple, de, bigramas. 
+
+$P(\text{muy})=\dfrac{N(muy)}{N}}=\dfrac{3}{9}=\dfrac{1}{3}$ 
+
+$P(\text{día}|\text{un})=\dfrac{N(un,dia)}{N(un)}=\dfrac{2}{3}$
+
+$P(\text{simple}|muy)=\dfrac{N(muy,simple)}{N(muy)}=\dfrac{1}{3}$
+
 
 ## Corpus y vocabulario
 
@@ -283,14 +309,14 @@ siguiente normalización:
 Por ejemplo, para el modelo de bigramas necesitamos poder
 calcular $P(w|z)$ para cualquier par de palabras $w$ y $z$.
 No necesitaremos calcular las probabilidades
-$P(w)$ (una sola palabra), pues podemos como símbolo inicial
+$P(w)$ (una sola palabra), pues podemos poner como símbolo inicial
 de cada frase un símbolo fijo como $\langle s \rangle$, y al final un símbolo
 como $\langle /s \rangle$. Así, por ejemplo, $P(el|\langle s\rangle)$ es la probabilidad
 de que la frase empiece on la palabra *el*. Entonces, para calcular
 por ejemplo P(El perro corre), haríamos, bajo el modelo de bigramas
 
 $$P(\langle s \rangle el\,perro\, corre \langle /s \rangle) = 
-P(\langle s \rangle)P(el|\langle s \rangle)P(perro|el)P(corre|perro)P(corre|\langle /s \rangle)$$
+P(\langle s \rangle)P(el|\langle s \rangle)P(perro|el)P(corre|perro)P(\langle /s \rangle | corre)$$
 Como $\langle s \rangle$ siempre ocurre la principio de las oraciones, $P(\langle s \rangle)=1$, de modo que
 
 $$P(\langle s \rangle el\,perro\, corre \langle /s \rangle) = 
@@ -815,8 +841,8 @@ En segundo lugar, en vez de usar las probabilidades crudas
 de unigramas $P(w)$, usamos las probabilidades de continuación
 de unigramas $P_{cont}(w)$:
 
-$$P_{cont}(w) = \frac{\sum_{z\in V} N(zw)}
-{ \sum_{z, b\in V} N(zb)}.$$
+$$P_{cont}(w) = \frac{\sum_{z\in V} I(N(zw)>0)}
+{ \sum_{z, b\in V} I(N(zb)>0)}.$$
 
 Que simplemente es la probabilidad de que $w$ sea una continuación después de alguna palabra (en el denominador están todas las posibles continuaciones sobre todas las palabras). Verifica que $\sum_{w\in V} P_{cont} (w) = 1$, de forma que es una distribución de probabilidad
 sobre los unigramas.
@@ -1389,7 +1415,8 @@ Considera también un modelo preentrenado mucho más grande como [este](https://
 
 Podemos visualizar el espacio de representaciones reduciendo dimensionalidad. En este caso, utilizamos *tsne*:
 
-```{r, out.width = "800px", cache = TRUE}
+```{r, out.width = "800px", cache = TRUE,eval=FALSE}
+install.packages("tsne")
 library(tsne)
 library(ggplot2)
 library(ggrepel)
@@ -1401,7 +1428,7 @@ vs_2 <- tsne(mat_vs[1:num_palabras, ],
              max_iter = 1000, perplexity = 50)
 ```
 
-```{r}
+```{r, eval=FALSE}
 df_vs <- as.data.frame(vs_2) %>%
   mutate(palabra = rownames(mat_vs[1:num_palabras, ]))
 ggplot(df_vs %>% sample_n(250), 

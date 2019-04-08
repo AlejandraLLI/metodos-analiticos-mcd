@@ -697,9 +697,7 @@ las canastas que incluyen al itemset $I$. La confianza siempre está entre 0 y 1
 
 **Observaciones**:
 
-- Por monotonicidad, si  $J$ es un conjunto de artículos más grande que $I$ (es decir $I\subset J$), entonces $n(J) \leq n(I)$: cualquier canasta que 
-
-contiene a $J$ también contiene a $I$, y puede haber algunas canastas que contienen a $I$, pero que no contienen a $J$.
+- Por monotonicidad, si  $J$ es un conjunto de artículos más grande que $I$ (es decir $I\subset J$), entonces $n(J) \leq n(I)$: cualquier canasta que contiene a $J$ también contiene a $I$, y puede haber algunas canastas que contienen a $I$, pero que no contienen a $J$.
 
 - Bajo el modelo de items independientes, todas las confianzas satisfacen $\hat{P}(I\to j)=\hat{P}(j)$ (la confianza simplemente es la probabilidad de observar el artículo $j$, independientemente del
 antecedente).
@@ -733,7 +731,7 @@ Podemos examinar algunas de las reglas:
 inspect(reglas[1:10,])
 ```
 
-*lhs* es el antecedente, *rhs* es el consecuente, *support* es el soporte de la canasta $I\cupj$, *confidence* es la confianza de la regla de asociación, *lhs.support* es el soporte del antecedente, *lift* es el interés (ver más adelante) y *count* es el número de ocurrencias de la canasta $I\cupj$. 
+*lhs* es el antecedente, *rhs* es el consecuente, *support* es el soporte de la canasta $I\cup j$, *confidence* es la confianza de la regla de asociación, *lhs.support* es el soporte del antecedente, *lift* es el interés (ver más adelante) y *count* es el número de ocurrencias de la canasta $I\cup j$. 
 
 
 En la siguiente tabla, *lhs.support* es el soporte del antecedente (lhs = left hand side). Agregamos también el error estándar de la estimación de confidence (que es una proporción basada en el número de veces que se observa el antecedente):
@@ -1009,7 +1007,7 @@ ver los detalles en [@hyper].
 - Los valores de *hyper-lift* no son realmente comparables a los de
 *lift*, son dos medidas de calidad de asociación diferentes, pero similares
 en cuanto a lo que quieren capturar.
-- Valores altos de hiper-lift generan valores altos de lift, pero al revés no es necesaria mente cierto. 
+- Valores altos de hiper-lift generan valores altos de lift, pero al revés no es necesariamente cierto. 
 
 ### Hyper-lift bajo hipótesis de independencia {-}
 

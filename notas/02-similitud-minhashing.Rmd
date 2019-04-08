@@ -106,7 +106,7 @@ textos[4] <- 'el documento con la historia del perro y el gato'
 Los métodos que veremos aquí se aplican para varias representaciones:
 
 - La representación
-más simple es la bolsa de palabras, que es conjunto de palabras que contiene un
+más simple es la bolsa de palabras, que es el conjunto de palabras que contiene un
 documento. Podríamos comparar entonces documentos calculando la similitud de Jaccard 
 de sus bolsas de palabras (1-gramas)
 
@@ -163,7 +163,7 @@ ejemplo <- shingle_chars('Este es un ejemplo', 4)
 ejemplo
 ```
 
-Si lo que nos interesa principalmente es la similitud textual (no significado, o polaridad, etc.) entre documentos, entonces podemos comparar dos documentos considerando que sucesiones de caracteres de tamaño fijo ocurren en ambos documentos, usando $k$-tejas. Esta
+Si lo que nos interesa principalmente es la similitud textual (no significado, o polaridad, etc.) entre documentos, entonces podemos comparar dos documentos considerando qué sucesiones de caracteres de tamaño fijo ocurren en ambos documentos, usando $k$-tejas. Esta
 representación es **flexible** en el sentido de que se puede adaptar para documentos muy cortos (mensajes o tweets, por ejemplo), pero también para documentos más grandes.
 
 
@@ -171,17 +171,15 @@ representación es **flexible** en el sentido de que se puede adaptar para docum
 **Tejas (shingles)**
   
 Sea $k>0$ un entero. Las $k$-tejas ($k$-shingles) de un documento d
- es el conjunto de todas las corridas (distintas) de $k$
-caracteres sucesivos.
+ es el conjunto de todas las corridas (distintas) de $k$ caracteres sucesivos.
 
 ```
 
 Es importante escoger $k$ suficientemente grande, de forma que la probabilidad de que
 una teja particular ocurra en un texto dado sea relativamente baja. Si los textos
 son cortos, entonces basta tomar valores como $k=4,5$, pues hay un total de $27^4$ tejas
-
 de tamaño $4$, y el número de tejas de un documento corto (mensajes, tweets) es mucho más bajo que
-$27^4$ Nota: Este argumento no es exactamente correcto, pues shay tejas que nunca van a aparecer en el 
+$27^4$. Nota: Este argumento no es exactamente correcto, pues hay tejas que nunca van a aparecer en el 
 español (por ejemplo "xya "); entonces, el valor $27^4$ está sobrestimando el no. total de tejas posibles. 
 
 Para documentos grandes, como noticias o artículos, es mejor escoger un tamaño más grande,

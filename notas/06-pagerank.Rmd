@@ -358,7 +358,7 @@ de nodos de la red (por ejemplo, una persona con betweeness alto controla más f
 Sea $G$ una gráfica **no dirigida**, y sea $A$ la matriz de adyacencia de $G$.
 Si $i$ es un nodo (vértice) dado, entonces su grado es
 
-$$c_G(i)=\sum_{j\leq i} A_{i,j}.$$
+$$c_G(i)=\sum_{j\neq i} A_{i,j}.$$
 que cuenta cúantas aristas conectan con el nodo $i$.
 
 ```{r}
@@ -454,12 +454,12 @@ graficar_red_nd(red_4)
 ### Medida de centralidad: *Betweeness*
 
 La medida de centralidad *betweeness* busca el número de camnios más cortos que pasan por cada nodo. El *betweeness* de un nodo $i$ se define como:
-$$c_b (u) = \sum_{j<k, u\neq j,u\neq i} \frac{ g(j,k |u)}{ g(j,k)},$$
+$$c_b (u) = \sum_{j<k, u\neq j,u\neq k} \frac{ g(j,k |u)}{ g(j,k)},$$
 donde
 
 - $g(j,k)$ es el número de caminos más cortos distintos entre $j$ y $k$ y 
-- $g(j,k |i)$ es el número de caminos más cortos distintos entre $j$ y $k$ que pasan por $i$. 
-- $g(j,k | i ) = 0$ cuando $j=i$ o $k=i$.
+- $g(j,k |u)$ es el número de caminos más cortos distintos entre $j$ y $k$ que pasan por $u$. 
+- $g(j,k | u ) = 0$ cuando $j=u$ o $k=u$.
 
 - Los caminos que más aportan al betweeness de un nodo $i$ son los que no tienen otra alternativa más que pasar por $i$.
 
