@@ -345,7 +345,7 @@ normalizar <- function(texto, vocab = NULL){
   texto <- gsub(";", " _punto_coma_ ", texto) 
   texto <- gsub("\\:", " _dos_puntos_ ", texto) 
   texto <- gsub("\\,[^0-9]", " _coma_ ", texto)
-  texto <- paste("_s_ _s_", texto)
+  #texto <- paste("_s_", texto)
   texto <- gsub("\\s+", " ", texto)
   texto
 }
@@ -405,7 +405,9 @@ Y calculamos las frecuencias de todos unigramas, bigramas y trigramas:
 conteo_ngramas <- function(corpus, n = 1, vocab_df = NULL){
   token_nom <- paste0('w_n_', rev(seq(1:n)) - 1)
   token_cond <- syms(token_nom[-length(token_nom)])
-  ngramas_df <- corpus %>% 
+  inicio <- paste(rep("_s_ ", n - 1), collapse = "")
+  ngramas_df <- corpus %>%
+                mutate(txt = paste(inicio, txt)) %>% 
                 unnest_tokens(ngrama, txt, token = "ngrams", n = n) 
   frec_ngramas <- ngramas_df %>% group_by(ngrama) %>%
                   summarise(num = length(ngrama)) %>%
@@ -449,8 +451,10 @@ n_gramas <- list(unigramas = mod_uni,
                  trigramas = mod_tri)
 
 log_prob <- function(textos, n_gramas, n = 2, laplace = FALSE, delta = 0.001, vocab_env = NULL){
+  inicio <- paste(rep("_s_ ", n - 1), collapse = "")    
   df <- data_frame(id = 1:length(textos), txt = textos) %>%
-         mutate(txt = normalizar(txt))
+         mutate(txt = normalizar(txt)) %>% 
+         mutate(txt = paste(inicio, txt, sep =""))
   if(!is.null(vocab_env)){
     df <- df %>% mutate(txt_u = map_chr(txt, ~restringir_vocab(.x, vocab = vocab_env))) %>% 
     select(id, txt_u) %>% rename(txt = txt_u)
@@ -553,17 +557,19 @@ length(vocab_env)
 restringir_vocab <- function(texto, vocab_env){
   texto_v <- strsplit(texto, " ")[[1]]
   texto_v <- lapply(texto_v, function(x){
-    en_vocab <- vocab_env[[x]]
-    if(is.null(en_vocab)){
-        x <- "_unk_"
+    if(x != ""){
+        en_vocab <- vocab_env[[x]]
+        if(is.null(en_vocab)){
+            x <- "_unk_"
+        }
+        x
     }
-    x
   })
   texto <- paste(texto_v, collapse = " ")
   texto
 }
 periodico_m_unk <- periodico_m %>% 
-    mutate(txt_u = map_chr(txt, ~restringir_vocab(.x, vocab = vocab_env))) %>% 
+    mutate(txt_u = map_chr(txt, ~restringir_vocab(.x, vocab_env = vocab_env))) %>% 
     select(id, txt_u) %>% rename(txt = txt_u)
 ```
 
@@ -646,7 +652,7 @@ calc_siguiente_uni <- function(texto, n_gramas){
 }
 texto <- "_s_"
 fin <- FALSE
-set.seed(12315)
+set.seed(1215)
 while(!fin){
   siguiente <- calc_siguiente_uni(texto, n_gramas_u)
   texto <- c(texto, siguiente)
@@ -841,8 +847,11 @@ En segundo lugar, en vez de usar las probabilidades crudas
 de unigramas $P(w)$, usamos las probabilidades de continuación
 de unigramas $P_{cont}(w)$:
 
-$$P_{cont}(w) = \frac{\sum_{z\in V} I(N(zw)>0)}
-{ \sum_{z, b\in V} I(N(zb)>0)}.$$
+
+$$
+P_{cont}(w) = \frac{\sum_{z\in V} I(N(zw)>0)}
+{ \sum_{z, b\in V} I(N(zb)>0)}.
+$$
 
 Que simplemente es la probabilidad de que $w$ sea una continuación después de alguna palabra (en el denominador están todas las posibles continuaciones sobre todas las palabras). Verifica que $\sum_{w\in V} P_{cont} (w) = 1$, de forma que es una distribución de probabilidad
 sobre los unigramas.
@@ -859,7 +868,9 @@ pues *aburrido* ocurre más como continuación.
 
 Usaríamos entonces:
 
-$$P_{da}(w|a) = \frac{N(aw) - d}{N(a)} + \lambda(a) P_{cont}(w).$$
+$$
+P_{da}(w|a) = \frac{N(aw) - d}{N(a)} + \lambda(a) P_{cont}(w).
+$$
 
 
 ### Desempeño {-}
@@ -1155,9 +1166,6 @@ feed_fow_p("el gato", C_1, H_1, U_1)
 ```
 
 
-
-
-
 ## Representación de palabras
 
 Un aspecto interesante de el modelo de arriba es que
@@ -1259,16 +1267,16 @@ $v_1,\ldots v_k$ al azar
 "contextos falsos" $v_j w_{n}$, $j=1\ldots,k$. Minimizamos
 en lugar de la observación de arriba
 
-$$E = -\log\sigma(y_{w_a}) + \sum_{j=1}^k \log\sigma(y_j),$$
-en donde queremos maximizar la probabilidad de que ocurra
-$w_a$ vs. la probabilidad de que ocurra alguna de las $v_j$.
+$$
+E = -\log\sigma(y_{w_a}) + \sum_{j=1}^k \log\sigma(y_j),
+$$
+en donde queremos maximizar la probabilidad de que ocurra $w_a$ vs. la probabilidad de que ocurra alguna de las $v_j$.
 Es decir, solo buscamos optimizar parámetros para separar lo mejor
 que podamos la observación de $k$ observaciones falsas, lo cual implica que tenemos que mover un número relativamente chico de
-parámetros (en lugar de todos los parámetros de todas las palabras del vocabulario). 
+parámetros (en lugar de todos los parámetros de todas las palabras del vocabulario).
 
 Las palabras "falsas" se escogen según una probabilidad ajustada
 de unigramas (se observó empíricamente mejor desempeño cuando escogemos cada palabra con probabilidad proporcional a $P(w)^{3/4}$, en lugar de $P(w)$, ver [@word2vec]).
-
 
 ### Ejemplo {-}
 
@@ -1381,8 +1389,6 @@ model %>% closest_to(vector, n = 20)
 
 
 
-
-
 Veremos ahora cómo funciona para el género de sustantivos:
 
 ```{r}
@@ -1390,6 +1396,7 @@ fem_1 <- model[["presidenta"]] - model[["presidente"]]
 vector <-  model[["rey"]] + fem_1
 model %>% closest_to(vector, n = 5) %>% filter(word != "rey")
 ```
+
 ```{r}
 vector <-  model[["tío"]] + fem_1
 model %>% closest_to(vector, n = 5) %>% filter(word != "tío")
@@ -1403,6 +1410,11 @@ vector <-  model[["rápido"]] + adv
 model %>% closest_to(vector, n = 10) %>% filter(word != "lentamente")
 ```
 
+```{r}
+ant <- model[["grande"]] - model[["chico"]]
+vector <-  model[["feo"]] + ant
+model %>% closest_to(vector, n = 10) 
+```
 La evaluación de estas aplicaciones puede hacerse por ejemplo,
 con una lista de singular/plurales, de adjetivos/adverbios, masculino/femenino, etc (ver [@word2vec]).
 
