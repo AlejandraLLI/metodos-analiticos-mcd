@@ -3,7 +3,7 @@
 En recuperación de información (IR), tenemos una **colección de documentos** (veremos texto en esta sección). Una persona tiene alguna tarea o **necesidad de información**, y quiere utilizar la colección para resolver su tarea o su pregunta. Formula una 
 **consulta** al sistema de recuperación, y obtiene una colección de resultados (documentos recuperados) que esperamos sean **relevantes** para contestar su pregunta.
 
-El desempeño del sistema de recuperación puede ser medido de distintas formas. Una de las más usuales es usar *precisión* y *recall**:
+El desempeño del sistema de recuperación puede ser medido de distintas formas. Una de las más usuales es usar *precisión* y *recall*:
 
 - Precisión: fracción de documentos recuperados que son relevantes a la búsqueda
 - Recall o sensibilidad: fracción de los documentos relevantes que son recuperados.
@@ -26,7 +26,7 @@ En principio podríamos hacer una búsqueda lineal (grep) sobre todos los docume
 ## Matrices de incidencias términos-documentos
 
 Podemos construir un índice para evitar hacer pases de los documentos cada vez que tenemos un nueva consulta. Una manera de hacerlo es construyendo la
-matriz $M$ de términos documentos, donde
+matriz $M$ de términos-documentos, donde
 $M_{td} = 1$
 si el término $t$ está en el documento $d$, y $M_{td}=0$ en otro caso.
 
@@ -36,9 +36,12 @@ los renglones de términos:
 #### Ejemplo {-}
 
 ```{r, message = FALSE, warning = FALSE}
+# Descarga paquetes
 if(!require(tm)){
   install.packages("tm")
 }
+
+# Carga librerías
 library(tm)
 library(tidyverse)
 library(tidytext)
@@ -47,6 +50,7 @@ library(tidytext)
 Consideramos la siguiente colección de documentos:
 
 ```{r, tidy=FALSE}
+# Define la colección de documentos
 frases <- c('el perro y el gato viven en la casa',
             'el perro juega con la pelota',
             'la pelota es amarilla',
@@ -57,24 +61,54 @@ Construimos una matriz binaria que indica qué términos
 aparecen en qué documentos
 
 ```{r}
+# Interpreta cada elemento del vector frases como un documento. 
 vs <- VectorSource(frases)
+
+# Asigna estructura de corpus
 corpus <- VCorpus(vs)
+
+# Extrae la matriz (rala) de términos-documentos. 
+# weightBin hace referencia a pesos binarios (1 si el doc tiene la palabra, 0 si no la tiene)
+# wordLengts hace referencia a la longitud aceptada de las palabras. 
+# Palabras con número de caracteres fuera del intervalo son desechadas. 
 td_sparse <- TermDocumentMatrix(corpus, 
       control = list(weighting = weightBin,
            wordLengths = c(2, Inf))) 
+
+# Convierte a matriz (densa)
 td_mat <- as.matrix(td_sparse)
+
+# Imprime la matriz (densa) de términos-documentos.
 td_mat
 ```
 
 Si queremos hacer una consulta, por ejemplo de "gato **y** perro **pero no** casa", por ejemplo, podemos hacer lógica booleana
 con los vectores de términos:
 
+Primero exrtraemos todos los documentos que contienen **perro**
 ```{r}
+# Extrae las columnas en las que el renglón "perro" tiene un uno 
 consulta <- as.logical(td_mat["perro", ])
+
+# Imprime los documentos
 frases[consulta]
+```
+
+De esos docuemtnos, extraemos los que tienen **gato**
+```{r}
+# Extrae las columnas en las que el renglón "gato" tiene un uno 
 consulta <- consulta & td_mat["gato", ]
+
+# Imprime los documentos
 frases[consulta]
+```
+
+Por último, extraemos los documentos que **NO** tienen **casa**
+```{r}
+# Extrae las columnas en las que el renglón "casa" NO tiene un uno 
 consulta <- consulta & !td_mat["casa", ]
+
+# Imprime los documentos
 frases[consulta]
 ```
 ---
@@ -85,7 +119,11 @@ frases[consulta]
 usar una matriz densa. Típicamente la matriz de términos documentos es grande (podría ser fácilmente de cientos de miles por millones, por ejemplo) y rala (relativamente pocos 1's), por lo que es mejor usar una matriz rala
 
 ```{r}
+# Imprime la información de la matriz sparse
 td_sparse
+
+# Estructura de la matriz sparse
+# i:=palabras, j:=documentos, v:=1 (si doc j tiene la palabra i)
 str(td_sparse)
 ```
 
@@ -99,7 +137,7 @@ str(td_sparse)
 ## Índice invertido
 
 En primer lugar, mostramos la estructura estándar que se utiliza 
-para recuperacion de documentos: el índice invertido. 
+para recuperación de documentos: el índice invertido. 
 
 El índice invertido agrupa, para cada término $t$, todos los
 id's de los documentos que lo contienen. 
@@ -111,36 +149,67 @@ Veamos dos maneras de calcular el índice invertido (en estos ejemplos
 hacemos el cálculo en memoria, pues nuestros datos son chicos):
 
 ```{r}
-df_frases <- data_frame(id = 1:length(frases), frase = frases) %>%
-  unnest_tokens(palabras, frase) %>% 
-  group_by(id, palabras) %>%
-  summarise(term_frec = length(palabras)) %>%
-  group_by(palabras) %>%
-  mutate(doc_frec = length(id))
-ii_lista <- split(df_frases, df_frases$palabras) %>% 
-  map(function(df){ select(ungroup(df), -palabras) %>% ungroup })
+# Creamos un data frame con los indices invertidos 
+df_frases <- data_frame(id = 1:length(frases), frase = frases) %>% # id y documento
+  unnest_tokens(palabras, frase) %>% # se extraen los tokens y el id al que corresponden
+  group_by(id, palabras) %>% # se agrupan tokens por id y palabra
+  summarise(term_frec = length(palabras)) %>% # se cuenta el no. de veces que aparece cada palabra en una misma frase 
+  group_by(palabras) %>% # se agrupa por palabra 
+  mutate(doc_frec = length(id)) # se cuenta el número de artículos en los que aparece
+
+
+# Extrae una lista de dataframes para cada palabra con la frecuencia por documento y la frecuencia en documentos. 
+ii_lista <- split(df_frases, df_frases$palabras) %>% # separa en dataframes individuales para cada palabra. 
+  map(function(df){ select(ungroup(df), -palabras) %>% ungroup }) # desagrupa y elimina la columna palabras. 
+
+# Impresión de la lista de dataframes 
 ii_lista
 ```
 
 Y también podríamos hacer (usando la tabla hash de los *environments* de R):
 
 ```{r}
+# Función para crear el índice invertido. 
 crear_indice <- function(frases){
+  
+  # Asocia la funcion hash a un ambiente. 
   indice <- new.env(hash = TRUE)
+  
+  # Para cada frase... 
   for(i in 1:length(frases)){
+    
+    # Extrae las palabras 
     tokens <- tokenizers::tokenize_words(frases[i], simplify = TRUE)
+    
+    # Convierte los tokens a factor 
     tokens_f <- factor(tokens)
+    
+    # Cuenta la frecuencia de cada palabra en la frase i. 
     tokens_conteo <- tabulate(tokens_f)
+    
+    # Extrae los nombres de cada factor (palabra)
     nombres <- levels(tokens_f)
+    
+    # Para cada palabra en la frase i...
     for(j in 1:length(tokens_conteo)){
+      
+      # Asigna la palabra 
       token <- nombres[j]
+      
+      # Al ambiente del token, le asigna el id del documento y la frecuencia de la palabra j en el docuemnto i. 
       indice[[token]] <- c(indice[[token]], 
                            list(c('doc' = i, 'frec_doc' = tokens_conteo[j]))) 
     }
   }
+  
+  # Devuelve el índice 
   indice
 }
+
+# Evalua la función crear_indice en las frases de prueba
 ii_env <- crear_indice(frases)
+
+# Extrae el índice invertido para la palabra el
 ii_env$el
 ```
 
@@ -151,7 +220,7 @@ Para construir un **índice invertido** de una colección de textos,
 2. Tokenizamos los textos, convirtiendo cada documento en una colección de tokens (usando como separadores espacios en blanco y/o puntuación).
 3. Hacemos preprocesamiento de los tokens (por ejemplo, pasar a minúsculas, lematizar, eliminar stopwords). También podemos agregar términos como sinónimos 
 (si aparece *brincar*, agregar también *saltar*. etc).
-4. Creamos el índice invertido, que consiste de un diccionario indexado por los términos, y término apunta a los indentificadores de los documentos que contienen este término (el diccionario puede estar en memoria, y contener apuntadores a archivos de disco donde estan los doc_id)
+4. Creamos el índice invertido, que consiste de un diccionario indexado por los términos, y donde cada término apunta a los indentificadores de los documentos que contienen este término (el diccionario puede estar en memoria, y contener apuntadores a archivos de disco donde estan los doc_id)
 ```
 
 Para hacer búsquedas con el índice invertido de conjunciones de términos,
@@ -162,9 +231,30 @@ encontramos los términos, e intersectamos las listas de doc_id\'s.
 Supongamos que buscamos perro **y** gato
 
 ```{r}
+# Buscar documentos que contengan perro y gato. 
+# Extrae los id de documentos que contienen perro (pull) y los id de documentos que contienen gato
+# Luego encuentra la intersección 
 perro_y_gato <- intersect(ii_lista[["perro"]] %>% pull(id), 
                 ii_lista[["gato"]] %>% pull(id))
+
+# Imprime las frases con perro y gato. 
 frases[perro_y_gato]
+
+```
+
+Si queremos las frases que contengan perro **o** gato
+Supongamos que buscamos perro **y** gato
+
+```{r}
+# Buscar documentos que contengan perro o gato. 
+# Extrae los id de documentos que contienen perro (pull) y los id de documentos que contienen gato
+# Luego encuentra la unión 
+perro_o_gato <- union(ii_lista[["perro"]] %>% pull(id), 
+                ii_lista[["gato"]] %>% pull(id))
+
+
+# Imprime las frases con perro o gato. 
+frases[perro_o_gato]
 ```
 
 ---
