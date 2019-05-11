@@ -1,0 +1,335 @@
+---
+title: "Modelos de lenguaje"
+output: html_document
+---
+
+# 1.
+1. (De nuestra referencia de Jurafsky). Considera el siguiente corpus:
+<s> I am Sam </s>
+<s> Sam I am </s>
+<s> I am Sam </s>
+<s> I do not like green eggs and Sam </s>
+
+Con este corpus, 
+
+##- Usa un modelo de unigramas para calcular** $P(Sam)$**. Recuerda contar los <s> y </s> como tokens.
+
+```{r}
+#Librerias 
+library(tidyverse)
+library(tidytext)
+library(methods)
+library(utils)
+
+# Funciones necesarias
+normalizar_n <- function(texto,n, vocab = NULL){
+  texto <- gsub("\\.\\s*$", "  _ss_", texto)
+  texto <- tolower(texto)
+  texto <- gsub("\\s+", " ", texto)
+  texto <- gsub("\\.[^0-9]", " _ss_ _s_ ", texto)
+  texto <- gsub("[«»]", "", texto) 
+  texto <- gsub(";", " _punto_coma_ ", texto) 
+  texto <- gsub("\\:", " _dos_puntos_ ", texto) 
+  texto <- gsub("\\,[^0-9]", " _coma_ ", texto) 
+  texto <- paste(str_flatten(rep("_s_ ",n-1),collapse=""),"_s_ ", texto,sep="")
+  texto
+}
+
+normalizar1 <- function(texto, vocab = NULL){
+  texto <- gsub("\\.\\s*$", "  _ss_", texto)
+  texto <- tolower(texto)
+  texto <- gsub("\\s+", " ", texto)
+  texto <- gsub("\\.[^0-9]", " _ss_ _s_ ", texto)
+  texto <- gsub("[«»]", "", texto) 
+  texto <- gsub(";", " _punto_coma_ ", texto) 
+  texto <- gsub("\\:", " _dos_puntos_ ", texto) 
+  texto <- gsub("\\,[^0-9]", " _coma_ ", texto) 
+  texto <- paste("_s_", texto)
+  texto
+}
+
+normalizar <- function(texto, vocab = NULL){
+  texto <- gsub("\\.\\s*$", "  _ss_", texto)
+  texto <- tolower(texto)
+  texto <- gsub("\\s+", " ", texto)
+  texto <- gsub("\\.[^0-9]", " _ss_ _s_ ", texto)
+  texto <- gsub("[«»]", "", texto) 
+  texto <- gsub(";", " _punto_coma_ ", texto) 
+  texto <- gsub("\\:", " _dos_puntos_ ", texto) 
+  texto <- gsub("\\,[^0-9]", " _coma_ ", texto) 
+  texto <- paste("_s_ _s_", texto)
+  texto
+}
+restringir_vocab <- function(texto, vocab = vocab){
+  texto_v <- strsplit(texto, " ")
+  texto_v <- lapply(texto_v, function(x){
+    en_vocab <- x %in% vocab
+    x[!en_vocab] <- "_unk_"
+    x
+  })
+  texto <- sapply(texto_v, function(x){
+      paste(x, collapse = " ")
+  })
+  texto
+}
+
+conteo_ngramas <- function(corpus, n = 1, vocab = NULL){
+  token_nom <- paste0('w_n_', rev(seq(1:n)) - 1)
+  token_cond <- syms(token_nom[-length(token_nom)])
+  ngramas_df <- corpus %>% 
+                unnest_tokens(ngrama, txt, token = "ngrams", n = n)
+  frec_ngramas <- ngramas_df %>% group_by(ngrama) %>%
+                  summarise(num = length(ngrama)) %>%
+                  separate(ngrama, token_nom, sep=" ") %>%
+                  group_by(!!!token_cond) %>%
+                  mutate(denom = sum(num)) %>%
+                  ungroup %>%
+                  mutate(log_p = log(num) - log(denom))
+  frec_ngramas
+}
+```
+
+```{r}
+# Construccion del corpus
+corpus_mini <- c("I am Sam.", "Sam I am.", "I am Sam.", "I do not like green eggs and Sam.")
+normalizar(corpus_mini)
+```
+
+```{r}
+# Modelo unigrama
+ejemplo <- data_frame(txt = corpus_mini) %>%
+                mutate(id = row_number()) %>%
+                mutate(txt = normalizar(txt)) 
+
+unigrams_ejemplo <- ejemplo %>% 
+                   unnest_tokens(unigramas, txt, token = "ngrams", 
+                                 n = 1) %>%
+                   group_by(unigramas) %>% tally()
+
+knitr::kable(unigrams_ejemplo)
+```
+
+```{r}
+# Se obtiene la probabilidad
+p_sam <- unigrams_ejemplo$n[11]/sum(unigrams_ejemplo$n)
+p_sam
+```
+La probabilidad de P(Sam) es 13.79%
+
+**---------OTRA MANERA DE HACERLO---------**
+```{r}
+
+corpus_df <- data_frame(txt = corpus_mini) %>%
+                mutate(id = row_number()) %>%
+                mutate(txt = normalizar(txt)) 
+
+mod_uni_sam <- conteo_ngramas(corpus_df, n = 1)
+mod_uni_sam
+```
+```{r}
+p_sam <- exp(mod_uni_sam$log_p[11])
+p_sam
+```
+
+
+##- Usa un modelo de bigramas para calcular $P(Sam | am)$ y $P(I | <s>)$. 
+
+```{r}
+# Modelo bigrama
+bigrams_ejemplo <- ejemplo %>% 
+                   unnest_tokens(bigramas, txt, token = "ngrams", 
+                                 n = 2) %>%
+                   group_by(bigramas) %>% tally()
+knitr::kable(bigrams_ejemplo)
+```
+```{r}
+p_sam_am <- bigrams_ejemplo$n[5]/unigrams_ejemplo$n[3]
+p_sam_am
+
+p_I_s <- bigrams_ejemplo$n[2]/unigrams_ejemplo$n[1]
+p_I_s
+```
+La probabilidad de obtener la palabra Sam dado que se presentó la palabra am es de 66.66%
+La probabilidad de empezar con la palabra I es de 37.5%
+
+**---------OTRA MANERA DE HACERLO---------**
+```{r}
+mod_bi_sam  <- conteo_ngramas(corpus_df, n = 2)
+mod_bi_sam
+```
+
+```{r}
+p_sam_am <- exp(mod_bi_sam$log_p[5])
+p_sam_am
+
+p_I_s <- exp(mod_bi_sam$log_p[2])
+p_I_s
+```
+
+## NORMALIZANDO POR n
+**---------------------DUDAAAAA--------------**
+```{r}
+normalizar1(corpus_mini)
+ejemplo <- data_frame(txt = corpus_mini) %>%
+                mutate(id = row_number()) %>%
+                mutate(txt = normalizar1(txt)) 
+
+unigrams_ale <- ejemplo %>% 
+                   unnest_tokens(unigramas, txt, token = "ngrams", 
+                                 n = 1) %>%
+                   group_by(unigramas) %>% tally()
+
+bigrams_ale <- ejemplo %>% 
+                   unnest_tokens(bigramas, txt, token = "ngrams", 
+                                 n = 2) %>%
+                   group_by(bigramas) %>% tally()
+
+knitr::kable(bigrams_ale)
+
+p_I_s_corrected <- bigrams_ale$n[1]/unigrams_ale$n[1]
+print("La probabilidad de empezar la frase con I es:")
+p_I_s_corrected
+```
+
+# 2 
+2. Usando los datos de clase (notas de periódico), 
+calcula las log probabilidades de las siguientes frases bajo los modelos
+de unigramas, bigramas y trigramas:
+
+- El presidente dijo que sí.
+- El dijo presidente que sí.
+- El presidente dijo algo extraño.
+
+
+```{r, message = FALSE, warning = FALSE}
+#Cargamos los datos
+library(tidyverse)
+periodico <- read_lines(file='../datos/Es_Newspapers.txt',
+                        progress = FALSE)
+# Lo pasamos a un dataframe
+periodico_df <- data_frame(txt = periodico) %>%
+                mutate(id = row_number()) %>%
+                mutate(txt = normalizar(txt)) 
+
+# Se calculan las frecuencias de los unigramas
+
+mod_uni <- conteo_ngramas(periodico_df, n = 1)
+mod_bi  <- conteo_ngramas(periodico_df, n = 2)
+mod_tri <- conteo_ngramas(periodico_df, n = 3)
+
+mod_uni %>% arrange(desc(num)) %>% head(20) %>% knitr::kable()
+```
+
+```{r}
+mod_bi %>% arrange(desc(num)) %>% head(20) %>% knitr::kable()
+```
+
+```{r}
+mod_tri %>% arrange(desc(num)) %>% head(20) %>% knitr::kable()
+```
+
+```{r}
+# Ahora se calcula la probabilidad de ocurrencia de textos:
+n_gramas <- list(unigramas = mod_uni,
+                 bigramas  = mod_bi,
+                 trigramas = mod_tri)
+
+log_prob <- function(textos, n_gramas, n = 2, laplace = FALSE, delta = 0.001){
+  df <- data_frame(id = 1:length(textos), txt = textos) %>%
+         mutate(txt = normalizar(txt))
+  token_nom <- paste0('w_n_', rev(seq(1:n)) - 1)
+  df_tokens <- df %>% group_by(id) %>%
+                unnest_tokens(ngrama, txt, 
+                token = "ngrams", n = n) %>%
+                separate(ngrama, token_nom, " ") %>%
+                left_join(n_gramas[[n]], by = token_nom)
+  if(laplace){
+    V <- nrow(n_gramas[[1]])
+    log_probs <- log(df_tokens[["num"]] + delta) - log(df_tokens[["denom"]] + delta*V )
+    log_probs[is.na(log_probs)] <- log(1/V)
+  } else {
+    log_probs <- df_tokens[["log_p"]]
+  }
+  log_probs <- split(log_probs, df_tokens$id)
+  sapply(log_probs, mean)
+}
+```
+
+## Modelo unigrama
+```{r}
+textos <- c("El presidente dijo que sí.",
+            "El dijo presidente que sí.",
+           "El presidente dijo algo extraño.")
+log_prob(textos, n_gramas, n = 1)
+
+```
+
+## Modelo bigrama
+```{r}
+log_prob(textos, n_gramas, n = 2)
+```
+
+## Modelo Trigrama
+```{r}
+log_prob(textos, n_gramas, n = 3)
+normalizar(textos)
+```
+
+
+### Explica para qué modelos obtienes NA para la segunda frase.¿Por qué crees que pasa eso?
+Con el modelo de bigrama y de trigrama se obtiene NA en la segunda frase "El dijo presidente que sí"
+A continuación investigaremos porqué sucede esto.
+```{r}
+n <- 2
+textos <- "El dijo presidente que sí."
+df <- data_frame(id = 1:length(textos), txt = textos) %>%
+         mutate(txt = normalizar(txt))
+token_nom <- paste0('w_n_', rev(seq(1:n)) - 1)
+df_tokens <- df %>% group_by(id) %>%
+                unnest_tokens(ngrama, txt, 
+                token = "ngrams", n = n) %>%
+                separate(ngrama, token_nom, " ") %>%
+                left_join(n_gramas[[n]], by = token_nom)
+df_tokens
+```
+En la tabla anterior, se puede observar que el problema es que no se observan las combinaciones de palabras "el dijo" ni "dijo presidente".
+
+```{r}
+n <- 3
+textos <- "El dijo presidente que sí."
+df <- data_frame(id = 1:length(textos), txt = textos) %>%
+         mutate(txt = normalizar(txt))
+token_nom <- paste0('w_n_', rev(seq(1:n)) - 1)
+df_tokens <- df %>% group_by(id) %>%
+                unnest_tokens(ngrama, txt, 
+                token = "ngrams", n = n) %>%
+                separate(ngrama, token_nom, " ") %>%
+                left_join(n_gramas[[n]], by = token_nom)
+df_tokens
+```
+
+### Para la tercera frase, ¿qué modelos devuelven NA? ¿Por qué?
+En el caso de la tercera frase, el único modelo que regresó NA fue el modelo trigrama. 
+A continuación investigaremos porqué sucede esto.
+
+```{r}
+n <- 3
+textos <- "El presidente dijo algo extraño."
+df <- data_frame(id = 1:length(textos), txt = textos) %>%
+         mutate(txt = normalizar(txt))
+token_nom <- paste0('w_n_', rev(seq(1:n)) - 1)
+df_tokens <- df %>% group_by(id) %>%
+                unnest_tokens(ngrama, txt, 
+                token = "ngrams", n = n) %>%
+                separate(ngrama, token_nom, " ") %>%
+                left_join(n_gramas[[n]], by = token_nom)
+df_tokens
+```
+
+
+
+
+
+
+
+

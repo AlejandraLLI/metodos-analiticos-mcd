@@ -1,0 +1,373 @@
+---
+title: 'Tarea 9: Tragamonedas'
+author: "Alejandra Lelo de Larrea Ibarra"
+date: "10/05/2019"
+output: 
+  html_document:
+    toc: TRUE
+    toc_depth: 3
+---
+Considera un tragamonedas, donde cada brazo tiene una distribución
+Poisson de recompensas con parámetros
+$$\lambda = (8, 9, 5, 3, 2)$$
+
+# Algoritmo miope 
+
+Simula una corrida del tragamonedas usando el algoritmo e-miope,
+con $\epsilon = 0.2$ y número de corridas
+$n = 500$. Al final de la corrida, ¿cuántas veces jalaste
+cada palanca? ¿Cuál es la recompensa total durante el experimento?
+
+Usa el siguiente código copiado de la clase:
+
+## Funciones para algoritmo miope
+
+```{r}
+# Carga paquetes 
+library(tidyverse)
+library(DT)
+
+# Función para maquina poisson 
+crear_maquina_poisson <- function(lambda){
+  
+  # utilizamos recompensas poisson con distintas medias lambda
+  
+  # No de palancas 
+  n_brazos <- length(lambda)
+  
+  # una corrida para para el brazo j
+  simular_maquina <- function(brazo){
+    rpois(1, lambda = lambda[brazo])
+  }
+  
+  # Devuelve el resultado 
+  simular_maquina
+}
+```
+
+```{r}
+# Posibles valores de lambda (tasa)
+lambda <- c(8, 9, 7, 5, 2)
+
+# Función para crear la maquina poisson con los valores lambda específicos
+sim <- crear_maquina_poisson(lambda = lambda)
+```
+
+```{r}
+
+# Función para el algoritmo epsilon miope 
+crear_epsilon_miope <- function(epsilon, inicial = 1, sim_fun){
+  
+  # Extrae numero de brazos 
+  n_brazos <- environment(sim_fun)$n_brazos
+  
+  # inicializa el conteo de c/brazo 
+  conteos <- rep(0, n_brazos)
+  
+  # Inicializa las iteraciones
+  iteracion <- 0
+  
+  #recompensas <- vector("list", n_brazos)
+  
+  # Inicializa el valor total de las recomensas para c/brazo
+  sumas <- rep(0, n_brazos)
+  
+  # Inicializa 
+  S <- rep(0, n_brazos)
+  
+  # El mejor brazo comiezna en el 1 por default o el valor
+  # asignado al argumento 'inicial'. 
+  mejor <- inicial
+  
+  # Epsilon fijado para seleccionar un brazo aleatorio. 
+  epsilon <- epsilon
+  
+  # Función central 
+  fun <- function(){
+    
+    # Con probabilidad epsilon...
+    if(runif(1) <= epsilon){
+      
+      #explorar (selecciona un nuevo brazo)
+      brazo <- sample.int(n_brazos, 1)
+      
+      # con probabilidad 1-epsilon ...  
+    } else {
+      
+      # explotar (selecciona el mejor brazo al momento)
+      brazo <- mejor
+    }
+    
+    # Corre la máquina (poisson, bernoulli, etc...) para simular una recompensa.
+    sim <- sim_fun(brazo)
+    
+    #recompensas[[brazo]] <<- c(recompensas[[brazo]], sim)
+    
+    # Calcula la media anterior
+    media_ant <- ifelse(conteos[brazo] > 0, sumas[brazo] / conteos[brazo], 0)
+    
+    # Actualiza el conteo del brazo que se utilizó.
+    conteos[brazo] <<- conteos[brazo] + 1
+    
+    # Actualiza al suma del brazo con el valor simulado. 
+    sumas[brazo] <<- sumas[brazo] + sim
+    
+    # Calcula la nueva media del brazo 
+    media <- sumas[brazo] / conteos[brazo]
+    
+    # Calcula la desviación estándar (dinámica)
+    S[brazo] <<- S[brazo] + (sim - media_ant)*(sim - media)
+    
+    # Extrae el brazo con la mejor media hasta el momento. 
+    mejor <<- which.max(sumas /conteos)
+    
+    # Actualiza el contador de las iteraciones 
+    iteracion <<- iteracion + 1
+    
+    # Actualiza la inforamción a devolver. 
+    # En cada iteración devuelve un df con el status de cada brazo. 
+    estado <- data_frame(n = iteracion,
+                         brazo = 1:n_brazos,
+                         conteo = conteos,
+                         suma = sumas, 
+                         media = sumas / conteos,
+                         ee = sqrt(S / conteos)/sqrt(conteos))
+    # Devuelve el estado 
+    return(estado)
+  }
+  
+  # Devuelve la función 
+  fun
+}
+
+```
+
+## Simulaciones 
+
+```{r}
+# Creamos la funcíon para el algoritmo miope con un epsilon de 0.2, que inicie en 4 y con la máquina poisson anterior como función de simulación. 
+e_miope<-crear_epsilon_miope(epsilon = 0.2,inicial = 5,sim_fun = sim )
+
+# Corremos 500 simulaciones del algoritmo 
+set.seed(124433)
+iter<-lapply(1:500,function(x)e_miope()) %>%  # simula 500 iter del algoritmo miope 
+  bind_rows %>% # junta data frames
+  as_tibble() %>%   # convierte a tibble
+  arrange(n)
+
+# Vemos el dataframe 
+DT::datatable(iter)
+```
+
+## Resultados 
+
+```{r}
+# Obtenemos un resumen de la simulación
+
+# Recompensa promedio en cada iteración 
+resumen<-iter %>%
+  group_by(n) %>%
+  summarise(promedio_recompensa = sum(suma)/sum(conteo))
+
+# Grafica de la recompensa promedio en cda iteración 
+ggplot(resumen, aes(x=n,y=promedio_recompensa)) + geom_line()
+
+```
+
+A partir de la iteración 200 (aprpox) el algoritmo converge al valor de lambda del mejor brazo; ie a la recompensa mas alta promedio por brazo (lambda=9). 
+
+```{r}
+# Monitoreo de los brazos en el "tiempo"
+ggplot(iter,aes(x=n,
+                y = suma/conteo,group = brazo,
+                ymin = suma/conteo - 2*ee, 
+                ymax = suma/conteo + 2*ee, 
+                colour = factor(brazo))) + 
+  geom_line() +
+  geom_ribbon(alpha = 0.1)
+```
+
+El promedio de cada uno de los brazos converge rápidamente al valor de la lambda que utliza cada uno. Los brazos 1 y se traslapan demasiado, los brazos 4 y 5 no se traslapan (al final) pero son los peores. El mejor brazo (2) está bien diferenciado del resto desde la iteración 250 aproximadamente. 
+
+```{r}
+# Número de veces que se corrió cada brazo 
+filter(iter,n==500)%>%mutate(lambda=lambda)%>%select(n,brazo,lambda,everything())
+```
+Se puede ver que el brazo que más se utilizó fue el no. 2 que corresponde a la tasa más alta de recompensa. 
+
+```{r}
+# Recompensa total. 
+filter(iter,n==500)%>%select(suma)%>%sum()
+```
+
+# Tragamonedas bayesiano 
+
+Ahora utiliza un tragamonedas bayesiano para repetir este experimento.
+Tips:
+
+- Uitliza como iniciales distribuciones exponenciales (que son gamma) con
+media 5 ($\lambda = 1/5)$. Por ejemplo, esto coincide con el escenario
+de que en un porcentaje alto de los casos el retorno promedio que esperamos
+es menor a 10 unidades, y que en más de la mitad de los casos el retorno es 3-4 unidades.
+
+- Utiliza el hecho de que si la inicial es exponencial con
+parámetro $\lambda$, las observaciones tienen distribución poisson, y observamos una suma de retornos igual a $S$ en $n$ pruebas,
+entonces la posterior tiene distribución gamma
+con parámetros $\alpha = S + 1$ y $\beta= \lambda + n$. La puedes simular, por ejemplo, haciendo:
+```{r}
+n <- 10 # 10 pruebas
+suma <- 23 # suma de observaciones (retornos)
+media <- 23/10
+lambda_1 <- 1/5
+media
+# posterior
+sims <- rgamma(1000, suma + 1, n + lambda_1)
+qplot(sims) +
+  geom_vline(xintercept = media, colour = "red")
+```
+
+
+- Usa el ejemplo que vimos en clase y sustituye las distribuciones correctas. Solo 
+tienes que cambiar tres líneas del código que usamos para el caso bernoulli 
+(donde aparece rbeta).
+
+
+```{r}
+# Crear función de bayesiana 
+crear_bayesiano <- function(sim_fun, lambda_1=1/5, num_sims = 1000){
+  
+  # Extrae el número de brazos. 
+  n_brazos <- environment(sim_fun)$n_brazos
+  
+  # Inicializa el contador para el conteo de c/brazo
+  conteos <- rep(0, n_brazos)
+  
+  # Inicializa el contador para la suma de c/brazo 
+  sumas <- rep(0, n_brazos)
+  
+  # Inicializa el contador de iteraciones 
+  iteracion <- 0
+  
+  # Función central
+  fun <- function(){
+    
+    # Simulaciones de la posterior 
+    sims_post <- tibble(brazos = 1:n_brazos, 
+                        conteos = conteos, 
+                        sumas = sumas) %>% # crea un data frame con info de c/brazo
+      mutate(sims = map2(conteos, sumas, function(n, y){
+        tibble(sim_no = 1:num_sims,
+               valor = rbeta(num_sims, y + 1, lambda_1+ n)) })) %>% # Simula la posterior de las probabilidades como una beta. 
+      select(brazos, sims) %>% # selecciona la variable brazos y los datos de las simulaicones. 
+      unnest %>% # desagrega 
+      group_by(sim_no) %>% # agrupa por no de simulación 
+      filter(valor == max(valor)) # extrae el de mayor probabilidad posterior. 
+    
+    
+    # Dataframe de pesos finales 
+    pesos <- tibble(brazos = 1:n_brazos)
+    
+    # Crea un rsumen de las simulaciones posteriores 
+    resumen <- sims_post %>%  # simulaciones postriores 
+      ungroup() %>% # desagrupa
+      select(brazos) %>% # selecciona los brazos
+      group_by(brazos) %>% # agrupa por brazo
+      summarise(prop = n() / num_sims) # calcula la prop en que apareció cada brazo. 
+    
+    # Completa el data frame de pesos 
+    pesos <- pesos %>% # toma los brazos 
+      left_join(resumen, by = "brazos") %>% # agrega el resumen de cada brazo 
+      mutate(prop = ifelse(is.na(prop), 0, prop)) # asigna 0 a los que no tienen proporción. 
+    
+    # Muestrea un brazo usando las proporciones como probabilidades 
+    brazo <- sample(pesos$brazos, 1, prob = pesos$prop)
+    
+    # Corre la maquina seleccionada en el brazo muestreado
+    sim <- sim_fun(brazo)
+    
+    # Actualiza las iteracioens 
+    iteracion <<- iteracion + 1
+    
+    # Atualiza el conteo del brazo 
+    conteos[brazo] <<- conteos[brazo] + 1
+    
+    # Actualiza la recompensa del brazo con el valor simulado 
+    sumas[brazo] <<- sumas[brazo] + sim
+    
+    # Genera un dataframe con el estado de la iteración 
+    estado <- data_frame(n = iteracion,
+                         brazo = 1:n_brazos,
+                         conteo = conteos,
+                         suma = sumas) %>% # Info de los brazos. 
+      mutate(inf = map2_dbl( conteo, suma, function(n, y){ qbeta(0.05, y + 1, lambda_1+ n)
+      })) %>% # calcula el cuantil 0.05 de la posterior 
+      mutate(sup = map2_dbl(suma, conteo, function(n, y){
+        qbeta(0.95, y + 1, lambda_1+ n) })) # calcula el cuantil 0.95 de la posterior 
+    
+    # Devuelve el estado
+    estado 
+  }
+  
+  # Devuelve la función
+  fun
+}
+
+```
+
+
+## Simulaciones 
+
+```{r}
+set.seed(124433)
+
+# Función bayessiano con la maquina bernoulli
+bayesiano <- crear_bayesiano(sim_fun = sim)
+
+# Extrae las 500 simulaciones 
+iter_bayes <- lapply(1:500, function(i){
+bayesiano()
+}) %>% bind_rows %>% as_tibble()
+
+# Vemos el dataframe 
+DT::datatable(iter_bayes)
+```
+
+## Resultados 
+
+```{r}
+# Obtenemos un resumen de la simulación
+
+# Recompensa promedio en cada iteración 
+resumen<-iter_bayes %>%
+  group_by(n) %>%
+  summarise(promedio_recompensa = sum(suma)/sum(conteo))
+
+# Grafica de la recompensa promedio en cda iteración 
+ggplot(resumen, aes(x=n,y=promedio_recompensa)) + geom_line()
+
+```
+
+A partir de la iteración 200 (aprpox) el algoritmo también converge al valor de lambda del mejor brazo; ie a la recompensa mas alta promedio por brazo ($\lambda$=9). 
+
+```{r}
+# Monitoreo de los brazos en el "tiempo"
+ggplot(iter_bayes,aes(x=n,
+                ymin = inf,
+                ymax = sup, 
+                group = brazo,
+                colour = factor(brazo))) + 
+  geom_ribbon(alpha = 0.1)
+```
+
+El promedio de cada uno de los brazos converge rápidamente al valor de la lambda que utliza cada uno. Los brazos 1 y se traslapan demasiado, los brazos 4 y 5 no se traslapan (al final) pero son los peores. El mejor brazo (2) está bien diferenciado del resto desde la iteración 250 aproximadamente. 
+
+```{r}
+# Número de veces que se corrió cada brazo 
+filter(iter_bayes,n==500)%>%mutate(lambda=lambda)%>%select(n,brazo,lambda,everything())
+```
+Se puede que el brazo que más se utilizó fue el no. 2 que corresponde a la tasa más alta de recompensa y el que menos se utilizó fue el brazo número 5 que es el que tiene la lambda más chica. 
+
+```{r}
+# Recompensa total. 
+filter(iter_bayes,n==500)%>%select(suma)%>%sum()
+```
