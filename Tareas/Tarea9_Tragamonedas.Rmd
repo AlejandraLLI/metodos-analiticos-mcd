@@ -257,7 +257,7 @@ crear_bayesiano <- function(sim_fun, lambda_1=1/5, num_sims = 1000){
                         sumas = sumas) %>% # crea un data frame con info de c/brazo
       mutate(sims = map2(conteos, sumas, function(n, y){
         tibble(sim_no = 1:num_sims,
-               valor = rbeta(num_sims, y + 1, lambda_1+ n)) })) %>% # Simula la posterior de las probabilidades como una beta. 
+               valor = rgamma(num_sims, y + 1, lambda_1+ n)) })) %>% # Simula la posterior de las probabilidades como una beta. 
       select(brazos, sims) %>% # selecciona la variable brazos y los datos de las simulaicones. 
       unnest %>% # desagrega 
       group_by(sim_no) %>% # agrupa por no de simulación 
@@ -299,10 +299,10 @@ crear_bayesiano <- function(sim_fun, lambda_1=1/5, num_sims = 1000){
                          brazo = 1:n_brazos,
                          conteo = conteos,
                          suma = sumas) %>% # Info de los brazos. 
-      mutate(inf = map2_dbl( conteo, suma, function(n, y){ qbeta(0.05, y + 1, lambda_1+ n)
+      mutate(inf = map2_dbl( conteo, suma, function(n, y){ qgamma(0.05, y + 1, lambda_1+ n)
       })) %>% # calcula el cuantil 0.05 de la posterior 
       mutate(sup = map2_dbl(suma, conteo, function(n, y){
-        qbeta(0.95, y + 1, lambda_1+ n) })) # calcula el cuantil 0.95 de la posterior 
+        qgamma(0.95, y + 1, lambda_1+ n) })) # calcula el cuantil 0.95 de la posterior 
     
     # Devuelve el estado
     estado 
